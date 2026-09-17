@@ -59,3 +59,42 @@ test('field warp preserves non-square vertical extent', () => {
   );
   assert.notDeepEqual(warped.slice(0, width * 4), warped.slice((height - 1) * width * 4));
 });
+
+
+function referenceWarp(input, width, height, frame, testState) {
+  const out = new Uint8ClampedArray(input.length);
+  const scale = testState.displacement * Math.min(width, height) * 0.075;
+
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const u = x / Math.max(1, width - 1);
+      const v = y / Math.max(1, height - 1);
+      const [vx, vy] = sampleVector(u, v, frame, testState);
+      const sx = Math.max(0, Math.min(width - 1, Math.round(x + vx * scale)));
+      const sy = Math.max(0, Math.min(height - 1, Math.round(y + vy * scale)));
+      const src = (sy * width + sx) * 4;
+      const dst = (y * width + x) * 4;
+      out[dst] = input[src];
+      out[dst + 1] = input[src + 1];
+      out[dst + 2] = input[src + 2];
+      out[dst + 3] = input[src + 3];
+    }
+  }
+
+  return out;
+}
+
+test('cached field warp matches reference sampling', () => {
+  const width = 19;
+  const height = 13;
+  const frame = 11;
+  const source = makeSurface(width, height, state.seed, frame);
+
+  for (const directions of [4, 8, 16]) {
+    const testState = { ...state, directions };
+    assert.deepEqual(
+      warpImage(source, width, height, frame, testState),
+      referenceWarp(source, width, height, frame, testState)
+    );
+  }
+});

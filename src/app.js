@@ -1,9 +1,18 @@
 import { renderFrame, initialRouter } from './engine/pipeline.js';
+import { makeSurface } from './engine/surface.js';
 
 const canvas = document.querySelector('#view');
-const context = canvas.getContext('2d', { alpha: true, desynchronized: true });
 const fileInput = document.querySelector('#file');
 const status = document.querySelector('#status');
+
+if (!canvas || !fileInput || !status) {
+  throw new Error('required application elements are missing');
+}
+
+const context = canvas.getContext('2d', { alpha: true, desynchronized: true });
+if (!context) {
+  throw new Error('2D canvas context is unavailable');
+}
 
 const ids = ['seed', 'autonomy', 'displacement', 'memory', 'pressure', 'directions', 'addressing', 'adaptive'];
 const controls = Object.fromEntries(ids.map((id) => [id, document.querySelector('#' + id)]));
@@ -14,12 +23,30 @@ const readout = {
   latch: document.querySelector('#latch')
 };
 
+for (const [id, control] of Object.entries(controls)) {
+  if (!control) throw new Error('missing control #' + id);
+}
+for (const [id, node] of Object.entries(readout)) {
+  if (!node) throw new Error('missing readout #' + id);
+}
+
 let frame = 0;
 let paused = false;
 let history = null;
 let source = null;
+let generatedSource = null;
+let generatedSeed = null;
 let router = initialRouter();
 let raf = 0;
+let failed = false;
+
+function reportFailure(error) {
+  failed = true;
+  paused = true;
+  const message = error instanceof Error ? error.message : String(error);
+  status.textContent = 'renderer failed — ' + message;
+  console.error('Invalid Image renderer failed:', error);
+}
 
 function readState() {
   return {
@@ -47,52 +74,82 @@ function syncOutputs() {
   });
 }
 
+function sourceFor(state) {
+  if (source) return source;
+  if (!generatedSource || generatedSeed !== state.seed) {
+    status.textContent = 'building generated source';
+    generatedSource = makeSurface(canvas.width, canvas.height, state.seed, 0);
+    generatedSeed = state.seed;
+  }
+  return generatedSource;
+}
+
 function drawOne() {
-  const state = readState();
-  const result = renderFrame({
-    width: canvas.width,
-    height: canvas.height,
-    frame,
-    state,
-    source,
-    history,
-    router
-  });
+  if (failed) return;
 
-  history = result.image.slice();
-  router = result.router;
-  context.putImageData(new ImageData(result.image, canvas.width, canvas.height), 0, 0);
+  try {
+    const state = readState();
+    const frameSource = sourceFor(state);
+    const result = renderFrame({
+      width: canvas.width,
+      height: canvas.height,
+      frame,
+      state,
+      source: frameSource,
+      history,
+      router
+    });
 
-  readout.frame.textContent = String(frame);
-  readout.route.textContent = result.route;
-  readout.energy.textContent = result.energy.toFixed(2);
-  readout.latch.textContent = router.phase + ':' + router.flips;
-  status.textContent = source ? 'external source / live state' : 'generated source / live state';
-  frame += 1;
+    history = result.image.slice();
+    router = result.router;
+    context.putImageData(new ImageData(result.image, canvas.width, canvas.height), 0, 0);
+
+    readout.frame.textContent = String(frame);
+    readout.route.textContent = result.route;
+    readout.energy.textContent = result.energy.toFixed(2);
+    readout.latch.textContent = router.phase + ':' + router.flips;
+    status.textContent = source ? 'external source / live state' : 'generated source / live state';
+    frame += 1;
+  } catch (error) {
+    reportFailure(error);
+  }
 }
 
 function loop() {
-  if (!paused) drawOne();
+  if (!paused && !failed) drawOne();
   raf = requestAnimationFrame(loop);
 }
 
 async function loadFile(file) {
-  if (!file) return;
-  const bitmap = await createImageBitmap(file);
-  const temp = document.createElement('canvas');
-  temp.width = canvas.width;
-  temp.height = canvas.height;
-  const tctx = temp.getContext('2d');
-  tctx.fillStyle = '#000';
-  tctx.fillRect(0, 0, temp.width, temp.height);
+  if (!file || failed) return;
 
-  const scale = Math.max(temp.width / bitmap.width, temp.height / bitmap.height);
-  const width = bitmap.width * scale;
-  const height = bitmap.height * scale;
-  tctx.drawImage(bitmap, (temp.width - width) / 2, (temp.height - height) / 2, width, height);
-  source = tctx.getImageData(0, 0, temp.width, temp.height).data.slice();
-  bitmap.close();
-  reset();
+  try {
+    status.textContent = 'loading image';
+    const bitmap = await createImageBitmap(file);
+    const temp = document.createElement('canvas');
+    temp.width = canvas.width;
+    temp.height = canvas.height;
+    const tctx = temp.getContext('2d');
+
+    if (!tctx) {
+      bitmap.close();
+      throw new Error('temporary 2D canvas context is unavailable');
+    }
+
+    tctx.fillStyle = '#000';
+    tctx.fillRect(0, 0, temp.width, temp.height);
+
+    const scale = Math.max(temp.width / bitmap.width, temp.height / bitmap.height);
+    const width = bitmap.width * scale;
+    const height = bitmap.height * scale;
+    tctx.drawImage(bitmap, (temp.width - width) / 2, (temp.height - height) / 2, width, height);
+    source = tctx.getImageData(0, 0, temp.width, temp.height).data.slice();
+    bitmap.close();
+    reset();
+    status.textContent = 'external source / ready';
+  } catch (error) {
+    reportFailure(error);
+  }
 }
 
 for (const input of Object.values(controls)) input.addEventListener('input', syncOutputs);
@@ -100,14 +157,17 @@ controls.seed.addEventListener('change', reset);
 
 document.querySelector('#reset').addEventListener('click', reset);
 document.querySelector('#pause').addEventListener('click', (event) => {
+  if (failed) return;
   paused = !paused;
   event.currentTarget.textContent = paused ? 'resume' : 'pause';
 });
 document.querySelector('#step').addEventListener('click', () => {
+  if (failed) return;
   paused = true;
   drawOne();
 });
 document.querySelector('#mutate').addEventListener('click', () => {
+  if (failed) return;
   const seed = (Number(controls.seed.value) | 0) + 1 + ((router.pulse * 17) % 997);
   controls.seed.value = String(seed);
   controls.pressure.value = String(Math.min(1, Math.max(0, Number(controls.pressure.value) + ((router.phase - 1.5) * 0.03))));
@@ -126,5 +186,11 @@ canvas.addEventListener('drop', (event) => {
 window.addEventListener('beforeunload', () => cancelAnimationFrame(raf));
 
 syncOutputs();
-drawOne();
-raf = requestAnimationFrame(loop);
+status.textContent = 'starting renderer';
+window.__invalidImageBooted = true;
+window.dispatchEvent(new Event('invalid-image-ready'));
+
+raf = requestAnimationFrame(() => {
+  drawOne();
+  if (!failed) raf = requestAnimationFrame(loop);
+});
