@@ -1,4 +1,4 @@
-export function mixFrames(current, previous, width, height, amount, dx, dy) {
+export function mixFrames(current, previous, width, height, amount, dx, dy, linearHold = false) {
   if (!previous || previous.length !== current.length) return current.slice();
 
   const out = new Uint8ClampedArray(current.length);
@@ -14,7 +14,8 @@ export function mixFrames(current, previous, width, height, amount, dx, dy) {
       for (let c = 0; c < 3; c++) {
         const fresh = current[a + c] / 255;
         const held = previous[b + c] / 255;
-        out[a + c] = (fresh * (1 - keep) + Math.sqrt(held) * keep) * 255;
+        const retained = linearHold ? held : Math.sqrt(held);
+        out[a + c] = (fresh * (1 - keep) + retained * keep) * 255;
       }
       out[a + 3] = Math.max(current[a + 3], previous[b + 3] * keep);
     }
