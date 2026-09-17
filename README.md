@@ -42,3 +42,15 @@ npm run check
 The rendering core is dependency-free. Browser state is disposable; reproducible state is represented by the seed plus control values.
 
 The interactive viewport uses a 384×384 internal render surface and scales it to the available browser space. This keeps the CPU renderer responsive while preserving the deliberately pixel-oriented presentation.
+
+## Calm motion
+
+`calm motion` is enabled by default. It reduces hard temporal discontinuities without removing the destructive/glitch character:
+
+- displacement noise morphs continuously instead of replacing itself every four frames;
+- address drift eases between targets and its destructive mask stays stable within a route;
+- adaptive routes have a minimum dwell time before switching again;
+- route transitions temporarily retain more of the previous frame;
+- temporal retention is linear in calm mode, avoiding the brightness pumping of the legacy square-root hold.
+
+Uncheck `calm motion` to recover the original harsher stepping behaviour.

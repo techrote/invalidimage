@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { initialRouter, advanceRouter, renderFrame } from '../src/engine/pipeline.js';
 import { makeSurface } from '../src/engine/surface.js';
 import { sampleVector, warpImage } from '../src/engine/field.js';
+import { mixFrames } from '../src/engine/frame-mix.js';
 
 const state = {
   seed: 5501,
@@ -97,4 +98,75 @@ test('cached field warp matches reference sampling', () => {
       referenceWarp(source, width, height, frame, testState)
     );
   }
+});
+
+
+test('calm motion morphs the field instead of stepping every four frames', () => {
+  const point = [0.23, 0.61];
+  const legacyState = { ...state, calm: false };
+  const calmState = { ...state, calm: true };
+
+  assert.deepEqual(
+    sampleVector(point[0], point[1], 8, legacyState),
+    sampleVector(point[0], point[1], 9, legacyState)
+  );
+
+  assert.notDeepEqual(
+    sampleVector(point[0], point[1], 8, calmState),
+    sampleVector(point[0], point[1], 9, calmState)
+  );
+});
+
+test('calm router enforces a minimum dwell between route changes', () => {
+  const calmState = { ...state, calm: true };
+  let router = initialRouter();
+
+  for (let frame = 0; frame < 98; frame++) {
+    router = advanceRouter(router, frame, 1000, calmState);
+    assert.equal(router.phase, 0);
+    assert.equal(router.flips, 0);
+  }
+
+  let changed = false;
+  for (let frame = 98; frame < 160; frame++) {
+    const before = router;
+    router = advanceRouter(router, frame, 1000, calmState);
+    if (router.flips > before.flips) {
+      changed = true;
+      assert.equal(router.transition, 1);
+      assert.equal(router.phaseAge, 0);
+      break;
+    }
+  }
+
+  assert.equal(changed, true);
+});
+
+test('calm transition strength decays after a route change', () => {
+  const calmState = { ...state, calm: true };
+  let router = initialRouter();
+
+  for (let frame = 0; frame < 180; frame++) {
+    const before = router;
+    router = advanceRouter(router, frame, 1000, calmState);
+    if (router.flips > before.flips) {
+      const next = advanceRouter(router, frame + 1, 0, calmState);
+      assert.ok(next.transition < 1);
+      assert.ok(next.transition > 0);
+      return;
+    }
+  }
+
+  assert.fail('expected a calm route transition');
+});
+
+test('linear temporal hold avoids brightness pumping', () => {
+  const currentFrame = new Uint8ClampedArray([64, 64, 64, 255]);
+  const previousFrame = new Uint8ClampedArray([64, 64, 64, 255]);
+
+  const calm = mixFrames(currentFrame, previousFrame, 1, 1, 0.9, 0, 0, true);
+  const legacy = mixFrames(currentFrame, previousFrame, 1, 1, 0.9, 0, 0, false);
+
+  assert.deepEqual(calm, currentFrame);
+  assert.ok(legacy[0] > calm[0]);
 });

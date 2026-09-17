@@ -32,25 +32,102 @@ function applyPass(name, image, width, height, frame, state, phase) {
   return image;
 }
 
+function calmDriftTarget(seed, frame, salt, scale) {
+  const group = frame >> 5;
+  const unit = (hashWords(seed, group, salt) & 0xffff) / 0xffff;
+  return (unit * 2 - 1) * scale;
+}
+
 export function initialRouter() {
-  return { phase: 0, charge: 0, flips: 0, pulse: 0, orphan: 0 };
+  return {
+    phase: 0,
+    prevPhase: 0,
+    phaseAge: 0,
+    transition: 0,
+    charge: 0,
+    flips: 0,
+    pulse: 0,
+    smoothPulse: 0,
+    orphan: 0,
+    driftX: 0,
+    driftY: 0
+  };
 }
 
 export function advanceRouter(router, frame, energy, state) {
   const updated = advanceLatch(router, frame, energy + router.orphan, state.seed, state.autonomy);
   const pulse = tapeValue(frame, state.seed);
   const orphan = router.orphan * 0.91 + ((energy * (pulse % 5)) / 64);
+  const phaseAge = (router.phaseAge ?? 0) + 1;
 
-  if (!state.adaptive) {
-    return { ...router, pulse, orphan };
+  if (!state.calm) {
+    if (!state.adaptive) {
+      return {
+        ...router,
+        pulse,
+        smoothPulse: pulse,
+        orphan,
+        phaseAge,
+        transition: 0,
+        driftX: 0,
+        driftY: 0
+      };
+    }
+
+    return {
+      ...router,
+      phase: updated.phase,
+      prevPhase: router.phase,
+      phaseAge: updated.phase === router.phase ? phaseAge : 0,
+      transition: 0,
+      charge: updated.charge,
+      flips: updated.flips,
+      pulse,
+      smoothPulse: pulse,
+      orphan,
+      driftX: 0,
+      driftY: 0
+    };
   }
 
+  const smoothPulse = (router.smoothPulse ?? pulse) * 0.94 + pulse * 0.06;
+  const targetX = calmDriftTarget(state.seed, frame, 0x510e527f, state.displacement * 3.0);
+  const targetY = calmDriftTarget(state.seed, frame, 0x9b05688c, state.pressure * 3.0);
+  const driftX = (router.driftX ?? 0) * 0.96 + targetX * 0.04;
+  const driftY = (router.driftY ?? 0) * 0.96 + targetY * 0.04;
+  const decayedTransition = (router.transition ?? 0) * 0.90;
+
+  if (!state.adaptive) {
+    return {
+      ...router,
+      prevPhase: router.phase,
+      phaseAge,
+      transition: decayedTransition,
+      pulse,
+      smoothPulse,
+      orphan,
+      driftX,
+      driftY
+    };
+  }
+
+  const minDwell = 72 + Math.round((1 - state.autonomy) * 72);
+  const wantsChange = updated.phase !== router.phase;
+  const acceptChange = wantsChange && phaseAge >= minDwell;
+
   return {
-    phase: updated.phase,
+    ...router,
+    phase: acceptChange ? updated.phase : router.phase,
+    prevPhase: acceptChange ? router.phase : (router.prevPhase ?? router.phase),
+    phaseAge: acceptChange ? 0 : phaseAge,
+    transition: acceptChange ? 1 : decayedTransition,
     charge: updated.charge,
-    flips: updated.flips,
+    flips: acceptChange ? updated.flips : router.flips,
     pulse,
-    orphan
+    smoothPulse,
+    orphan,
+    driftX,
+    driftY
   };
 }
 
@@ -72,9 +149,22 @@ export function renderFrame({ width, height, frame, state, source, history, rout
     }
   }
 
-  const dx = ((hashWords(state.seed, frame >> 2) & 7) - 3) * Math.round(state.displacement * 2);
-  const dy = ((router.pulse % 5) - 2) * Math.round(state.pressure * 2);
-  image = mixFrames(image, history, width, height, state.memory, dx, dy);
+  let dx;
+  let dy;
+  let memory;
+
+  if (state.calm) {
+    dx = Math.round(router.driftX ?? 0);
+    dy = Math.round(router.driftY ?? 0);
+    const transition = router.transition ?? 0;
+    memory = Math.min(0.985, state.memory + 0.06 + transition * 0.18);
+  } else {
+    dx = ((hashWords(state.seed, frame >> 2) & 7) - 3) * Math.round(state.displacement * 2);
+    dy = ((router.pulse % 5) - 2) * Math.round(state.pressure * 2);
+    memory = state.memory;
+  }
+
+  image = mixFrames(image, history, width, height, memory, dx, dy, state.calm);
 
   const energy = energyOf(image);
   const nextRouter = advanceRouter(

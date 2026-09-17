@@ -50,6 +50,31 @@ function quantize(vx, vy, sectors) {
   return [direction[0] * magnitude, direction[1] * magnitude];
 }
 
+function smoothstep(t) {
+  return t * t * (3 - 2 * t);
+}
+
+function temporalGroups(frame, calm) {
+  if (!calm) return { a: frame >> 2, b: frame >> 2, t: 0 };
+
+  const span = 32;
+  const position = Math.max(0, frame) / span;
+  const a = Math.floor(position);
+  return {
+    a,
+    b: a + 1,
+    t: smoothstep(position - a)
+  };
+}
+
+function temporalNoise(seed, nx, ny, frame, salt, calm) {
+  const groups = temporalGroups(frame, calm);
+  const a = signedHash(seed, nx, ny, groups.a, salt);
+  if (groups.t === 0) return a * 0.17;
+  const b = signedHash(seed, nx, ny, groups.b, salt);
+  return (a + (b - a) * groups.t) * 0.17;
+}
+
 function vectorComponents(x, y, state, noiseX, noiseY) {
   const cx = x - 0.5;
   const cy = y - 0.5;
@@ -73,8 +98,8 @@ export function sampleVector(x, y, frame, state) {
   const cell = 18 + ((state.seed >>> 3) % 29);
   const nx = Math.floor(x * cell);
   const ny = Math.floor(y * cell);
-  const noiseX = signedHash(state.seed, nx, ny, frame >> 2, 0x243f6a88) * 0.17;
-  const noiseY = signedHash(state.seed, nx, ny, frame >> 2, 0xb7e15162) * 0.17;
+  const noiseX = temporalNoise(state.seed, nx, ny, frame, 0x243f6a88, state.calm);
+  const noiseY = temporalNoise(state.seed, nx, ny, frame, 0xb7e15162, state.calm);
   const [vx, vy] = vectorComponents(x, y, state, noiseX, noiseY);
   return quantize(vx, vy, Number(state.directions));
 }
@@ -85,25 +110,32 @@ export function warpImage(input, width, height, frame, state) {
   const sectors = Number(state.directions);
   const table = DIRECTIONS[sectors] || DIRECTIONS[8];
 
-  // The hash noise is constant inside each vector-field cell for four frames.
-  // Cache the tiny grid instead of hashing twice for every output pixel.
   const cell = 18 + ((state.seed >>> 3) % 29);
   const side = cell + 1;
   const noiseX = new Float64Array(side * side);
   const noiseY = new Float64Array(side * side);
-  const frameGroup = frame >> 2;
+  const groups = temporalGroups(frame, state.calm);
 
   for (let ny = 0; ny < side; ny++) {
     for (let nx = 0; nx < side; nx++) {
       const index = ny * side + nx;
-      noiseX[index] = signedHash(state.seed, nx, ny, frameGroup, 0x243f6a88) * 0.17;
-      noiseY[index] = signedHash(state.seed, nx, ny, frameGroup, 0xb7e15162) * 0.17;
+      const x0 = signedHash(state.seed, nx, ny, groups.a, 0x243f6a88);
+      const y0 = signedHash(state.seed, nx, ny, groups.a, 0xb7e15162);
+
+      if (groups.t === 0) {
+        noiseX[index] = x0 * 0.17;
+        noiseY[index] = y0 * 0.17;
+      } else {
+        const x1 = signedHash(state.seed, nx, ny, groups.b, 0x243f6a88);
+        const y1 = signedHash(state.seed, nx, ny, groups.b, 0xb7e15162);
+        noiseX[index] = (x0 + (x1 - x0) * groups.t) * 0.17;
+        noiseY[index] = (y0 + (y1 - y0) * groups.t) * 0.17;
+      }
     }
   }
 
   const widthDenominator = Math.max(1, width - 1);
   const heightDenominator = Math.max(1, height - 1);
-
   const spin = 0.25 + state.displacement * 0.9;
 
   for (let y = 0; y < height; y++) {
