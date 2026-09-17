@@ -1,6 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { initialRouter, advanceRouter, renderFrame } from '../src/engine/pipeline.js';
+import { makeSurface } from '../src/engine/surface.js';
+import { sampleVector, warpImage } from '../src/engine/field.js';
 
 const state = {
   seed: 5501,
@@ -41,4 +43,19 @@ test('headless frame rendering is deterministic', () => {
 
   assert.deepEqual(a.image, b.image);
   assert.equal(a.route, b.route);
+});
+
+test('field warp preserves non-square vertical extent', () => {
+  const width = 18;
+  const height = 54;
+  const frame = 5;
+  const source = makeSurface(width, height, state.seed, frame);
+  const warped = warpImage(source, width, height, frame, state);
+
+  assert.equal(warped.length, source.length);
+  assert.deepEqual(
+    sampleVector(0.5, 1, frame, state),
+    sampleVector(0.5, (height - 1) / (height - 1), frame, state)
+  );
+  assert.notDeepEqual(warped.slice(0, width * 4), warped.slice((height - 1) * width * 4));
 });

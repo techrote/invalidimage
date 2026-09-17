@@ -55,7 +55,7 @@ export function warpImage(input, width, height, frame, state) {
   for (let y = 0; y < height; y++) {
     for (let x = 0; x < width; x++) {
       const u = x / Math.max(1, width - 1);
-      const v = y / Math.max(1, width - 1);
+      const v = y / Math.max(1, height - 1);
       const [vx, vy] = sampleVector(u, v, frame, state);
       const sx = Math.max(0, Math.min(width - 1, Math.round(x + vx * scale)));
       const sy = Math.max(0, Math.min(height - 1, Math.round(y + vy * scale)));
