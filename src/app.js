@@ -1,4 +1,5 @@
 import { renderFrame, initialRouter } from './engine/pipeline.js';
+import { makeSurface } from './engine/surface.js';
 
 const canvas = document.querySelector('#view');
 const fileInput = document.querySelector('#file');
@@ -33,6 +34,8 @@ let frame = 0;
 let paused = false;
 let history = null;
 let source = null;
+let generatedSource = null;
+let generatedSeed = null;
 let router = initialRouter();
 let raf = 0;
 let failed = false;
@@ -71,11 +74,22 @@ function syncOutputs() {
   });
 }
 
+function sourceFor(state) {
+  if (source) return source;
+  if (!generatedSource || generatedSeed !== state.seed) {
+    status.textContent = 'building generated source';
+    generatedSource = makeSurface(canvas.width, canvas.height, state.seed, 0);
+    generatedSeed = state.seed;
+  }
+  return generatedSource;
+}
+
 function drawOne() {
   if (failed) return;
 
   try {
     const state = readState();
+    const frameSource = sourceFor(state);
     const result = renderFrame({
       width: canvas.width,
       height: canvas.height,
