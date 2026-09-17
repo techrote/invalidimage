@@ -61,8 +61,10 @@ function vectorComponents(x, y, state, noiseX, noiseY) {
   let vy = (-cy / distance) * attract;
 
   const spin = 0.25 + state.displacement * 0.9;
-  vx += -cy * spin + noiseX;
-  vy += cx * spin + noiseY;
+  vx += -cy * spin;
+  vy += cx * spin;
+  vx += noiseX;
+  vy += noiseY;
 
   return [vx, vy];
 }
