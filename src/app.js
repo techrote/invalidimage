@@ -95,7 +95,7 @@ function drawOne() {
       height: canvas.height,
       frame,
       state,
-      source,
+      source: frameSource,
       history,
       router
     });
