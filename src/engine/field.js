@@ -20,7 +20,7 @@ function directionIndex(vx, vy, sectors) {
   if (sectors === 8) {
     const ax = Math.abs(vx);
     const ay = Math.abs(vy);
-    const diagonalThreshold = 0.41421356237309503;
+    const diagonalThreshold = (1 - 0.707) / 0.707;
 
     if (ay <= ax * diagonalThreshold) return vx >= 0 ? 0 : 4;
     if (ax <= ay * diagonalThreshold) return vy >= 0 ? 2 : 6;
