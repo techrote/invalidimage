@@ -104,15 +104,28 @@ export function warpImage(input, width, height, frame, state) {
   const widthDenominator = Math.max(1, width - 1);
   const heightDenominator = Math.max(1, height - 1);
 
+  const spin = 0.25 + state.displacement * 0.9;
+
   for (let y = 0; y < height; y++) {
     const v = y / heightDenominator;
     const ny = Math.floor(v * cell);
+    const cy = v - 0.5;
 
     for (let x = 0; x < width; x++) {
       const u = x / widthDenominator;
       const nx = Math.floor(u * cell);
       const noiseIndex = ny * side + nx;
-      const [vx, vy] = vectorComponents(u, v, state, noiseX[noiseIndex], noiseY[noiseIndex]);
+      const cx = u - 0.5;
+      const distance = Math.max(Math.abs(cx), Math.abs(cy)) + 1e-6;
+      const falloff = Math.max(0, 1 - distance * 1.55);
+      const attract = state.pressure * falloff;
+
+      let vx = (-cx / distance) * attract;
+      let vy = (-cy / distance) * attract;
+      vx += -cy * spin;
+      vy += cx * spin;
+      vx += noiseX[noiseIndex];
+      vy += noiseY[noiseIndex];
 
       const direction = table[directionIndex(vx, vy, sectors)];
       const magnitude = Math.max(Math.abs(vx), Math.abs(vy));
