@@ -37,7 +37,10 @@ Do **not** open `index.html` directly from Explorer. The application uses browse
 ```text
 npm test
 npm run check
+npm run qualify
 ```
+
+`npm run qualify` is the final IMC campaign diagnostic. It runs deterministic headless continuity scenarios for stationary Manual state, moving Sweep state and a stopped Sweep, then reports representative small/medium fixture timing without enforcing a brittle hosted-CI frame-time threshold. See [docs/IMC-007-QUALIFICATION.md](docs/IMC-007-QUALIFICATION.md).
 
 The rendering core is dependency-free. Browser state is disposable; reproducible state is represented by the seed plus control values.
 
@@ -174,11 +177,26 @@ In Manual and Sweep modes, resolved macro fields are deterministic functions of 
 
 `modulationBounds(width)` documents numeric bounds and normalises malformed inputs so resolved numeric diagnostics remain finite.
 
+## Final qualification
+
+IMC-007 adds campaign-level acceptance coverage rather than another renderer feature. The tests exercise at least 240 sequential or adversarial frames for the core contracts and explicitly qualify:
+
+- stationary production Manual macro state with continuing local motion;
+- Hold Macro versus live local texture/history;
+- route/palette independence;
+- deterministic Sweep sequences and stable zero-speed return;
+- `globalAmount = 0` transform neutrality;
+- unchanged explicit Directions;
+- a headless frame-delta diagnostic that distinguishes local pixel motion from resolved macro motion without imposing an arbitrary aesthetic threshold.
+
+The qualification pass leaves renderer hot paths unchanged and retains Legacy Auto because that compatibility path remains documented and selectable.
+
 ## Development plans
 
-The modulation-control campaign is specified in:
+The modulation-control campaign is specified and qualified in:
 
 - [docs/RAG-MODULATION-CONTROL.md](docs/RAG-MODULATION-CONTROL.md)
 - [docs/IMC-005-MACRO-TRANSPORT.md](docs/IMC-005-MACRO-TRANSPORT.md)
+- [docs/IMC-007-QUALIFICATION.md](docs/IMC-007-QUALIFICATION.md)
 
-IMC-006 is the production UX/default integration pass. IMC-007 remains the final continuity, determinism and performance qualification pass.
+IMC-001 through IMC-006 establish the explicit control architecture and production UX. IMC-007 is the final continuity, determinism and performance qualification pass; after it passes CI, the recorded modulation-control repair campaign is complete.
