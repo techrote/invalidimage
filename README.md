@@ -43,6 +43,14 @@ The rendering core is dependency-free. Browser state is disposable; reproducible
 
 The interactive viewport uses a 384×384 internal render surface and scales it to the available browser space. This keeps the CPU renderer responsive while preserving the deliberately pixel-oriented presentation.
 
+## Resolved modulation diagnostics
+
+IMC-001 introduces `src/engine/modulation.js`, a dependency-free compatibility resolver that classifies the current overloaded renderer state into explicit `micro` and `macro` sections. `renderFrame()` exposes that resolved state as `result.modulation` for tests and diagnostics; it does not add UI or change the renderer-facing control path yet.
+
+The current compatibility contract intentionally records existing coupling rather than hiding it. For example, `pressure` still contributes to local attraction, address skew/XOR strength, and palette interpolation; route phase still determines both route identity and palette identity. Later IMC issues replace those compatibility sources with independent controls.
+
+`modulationBounds(width)` documents the numeric range of every resolved field. The resolver normalises malformed diagnostic inputs so all numeric outputs remain finite; ordinary UI-valid inputs reproduce the current derived state. The principal fixed ranges are: field blend `0..1`, noise amount `0.17`, attraction/warp/theme amount `0..1`, swirl `0.25..1.15`, row skew `-48..48`, XOR identity/amount/mask `0..255`, feedback X `-8..8`, feedback Y `-4..4`, route `0..3`, palette position `0..2`, and byte rotation `0..7`. Byte-stride bounds depend on render width and are returned by `modulationBounds(width)`.
+
 ## Calm motion
 
 `calm motion` is enabled by default. It reduces hard temporal discontinuities without removing the destructive/glitch character:
