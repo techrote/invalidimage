@@ -12,7 +12,8 @@ const files = [
   'src/engine/macro-transport.js',
   'src/engine/modulation.js',
   'src/engine/pipeline.js',
-  'scripts/dev.mjs'
+  'scripts/dev.mjs',
+  'scripts/qualify.mjs'
 ];
 
 for (const file of files) {
