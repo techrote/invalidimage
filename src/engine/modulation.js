@@ -29,6 +29,10 @@ function signedUnitValue(value) {
   return clamp(finiteNumber(value), -1, 1);
 }
 
+function canonicalZero(value) {
+  return Object.is(value, -0) ? 0 : value;
+}
+
 function normalizedFrame(frame) {
   return Math.trunc(clamp(finiteNumber(frame), 0, MAX_FRAME));
 }
@@ -89,7 +93,7 @@ function byteStrideFor(memory, width) {
 }
 
 function byteStrideForPan(stridePan, width) {
-  return Math.round(stridePan * width * 0.11) * 4;
+  return canonicalZero(Math.round(stridePan * width * 0.11) * 4);
 }
 
 function effectiveFeedbackAmount(memory, calm, transition) {
@@ -115,7 +119,7 @@ function manualMacroState({ state, seed, width, addressing, pressure, memory, ph
     manualMode: 1,
     globalAmount,
     skewPan,
-    rowSkew: addressing ? Math.round(skewPan * MAX_ROW_SKEW * globalAmount) : 0,
+    rowSkew: addressing ? canonicalZero(Math.round(skewPan * MAX_ROW_SKEW * globalAmount)) : 0,
     stridePan,
     byteStride: addressing ? byteStrideForPan(stridePan * globalAmount, width) : 0,
     addressAmount,
@@ -124,8 +128,8 @@ function manualMacroState({ state, seed, width, addressing, pressure, memory, ph
     // Diagnostic approximation only. The manual address path blends toward
     // value ^ xorIdentity using addressAmount rather than AND-masking bytes.
     xorMask: Math.round(xorIdentity * addressAmount),
-    feedbackX: Math.round(requestedFeedbackX * globalAmount),
-    feedbackY: Math.round(requestedFeedbackY * globalAmount),
+    feedbackX: canonicalZero(Math.round(requestedFeedbackX * globalAmount)),
+    feedbackY: canonicalZero(Math.round(requestedFeedbackY * globalAmount)),
     routeIndex: phase,
     palettePosition: phase % PALETTE_COUNT,
     themeAmount: pressure,
