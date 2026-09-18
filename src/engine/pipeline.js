@@ -26,9 +26,9 @@ function energyOf(bytes) {
   return total / Math.max(1, bytes.length / stride);
 }
 
-function applyPass(name, image, width, height, frame, state, phase, micro) {
-  if (name === 'field') return warpImage(image, width, height, frame, state, micro);
-  if (name === 'address') return addressTransform(image, width, height, frame, state, phase);
+function applyPass(name, image, width, height, frame, state, phase, modulation) {
+  if (name === 'field') return warpImage(image, width, height, frame, state, modulation.micro);
+  if (name === 'address') return addressTransform(image, width, height, state, modulation.macro);
   if (name === 'palette') return remapPalette(image, phase, state.pressure);
   return image;
 }
@@ -145,28 +145,22 @@ export function renderFrame({ width, height, frame, state, source, history, rout
 
   for (let i = 0; i < route.length; i++) {
     const before = image;
-    image = applyPass(route[i], image, width, height, frame, state, router.phase, modulation.micro);
+    image = applyPass(route[i], image, width, height, frame, state, router.phase, modulation);
     if (((router.pulse + i) & 3) === 0) {
       detachedEnergy += Math.abs(energyOf(image) - energyOf(before));
     }
   }
 
-  let dx;
-  let dy;
-  let memory;
-
-  if (state.calm) {
-    dx = Math.round(router.driftX ?? 0);
-    dy = Math.round(router.driftY ?? 0);
-    const transition = router.transition ?? 0;
-    memory = Math.min(0.985, state.memory + 0.06 + transition * 0.18);
-  } else {
-    dx = ((hashWords(state.seed, frame >> 2) & 7) - 3) * Math.round(state.displacement * 2);
-    dy = ((router.pulse % 5) - 2) * Math.round(state.pressure * 2);
-    memory = state.memory;
-  }
-
-  image = mixFrames(image, history, width, height, memory, dx, dy, state.calm);
+  image = mixFrames(
+    image,
+    history,
+    width,
+    height,
+    modulation.micro.feedbackAmount,
+    modulation.macro.feedbackX,
+    modulation.macro.feedbackY,
+    state.calm
+  );
 
   const energy = energyOf(image);
   const nextRouter = advanceRouter(
