@@ -5,6 +5,7 @@ import { warpImage } from './field.js';
 import { addressTransform } from './address.js';
 import { remapPalette } from './palette.js';
 import { mixFrames } from './frame-mix.js';
+import { resolveModulation } from './modulation.js';
 
 const ROUTES = Object.freeze([
   ['field', 'address', 'palette'],
@@ -136,6 +137,7 @@ export function routeFor(router) {
 }
 
 export function renderFrame({ width, height, frame, state, source, history, router }) {
+  const modulation = resolveModulation({ state, frame, router, width });
   const generated = source ? source.slice() : makeSurface(width, height, state.seed, frame);
   let image = generated;
   const route = routeFor(router);
@@ -178,6 +180,7 @@ export function renderFrame({ width, height, frame, state, source, history, rout
     image,
     energy,
     route: route.join(' > '),
-    router: nextRouter
+    router: nextRouter,
+    modulation
   };
 }
