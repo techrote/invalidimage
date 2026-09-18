@@ -366,7 +366,7 @@ test('zero global amount is a neutral macro-transform boundary while local textu
 
 test('headless frame-delta metric distinguishes live local motion, moving macro transport, and a stopped macro transport without an arbitrary pixel threshold', () => {
   const production = productionState();
-  const stationary = runHeadless(production, { frames: 96, width: 32, height: 24 });
+  const stationary = runHeadless(production, { frames: 96, width: 48, height: 36 });
   assert.equal(stationary.macroChanges, 0);
   assert.equal(stationary.routeChanges, 0);
   assert.equal(stationary.paletteChanges, 0);
@@ -378,7 +378,7 @@ test('headless frame-delta metric distinguishes live local motion, moving macro 
     macroPan: 0,
     macroSpeed: 0.24,
     macroHold: false
-  }, { frames: 96, width: 32, height: 24 });
+  }, { frames: 96, width: 48, height: 36 });
   assert.ok(moving.macroChanges > 0);
 
   const stopped = runHeadless({
@@ -387,7 +387,7 @@ test('headless frame-delta metric distinguishes live local motion, moving macro 
     macroPan: moving.finalPan,
     macroSpeed: 0,
     macroHold: false
-  }, { frames: 96, width: 32, height: 24 });
+  }, { frames: 96, width: 48, height: 36 });
   assert.equal(stopped.macroChanges, 0);
   assert.ok(stopped.meanPixelDelta > 0);
 });
