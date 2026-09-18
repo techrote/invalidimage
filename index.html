@@ -40,6 +40,10 @@
         <label>Address Amount <input id="addressAmount" type="range" min="0" max="1" value="0.37" step="0.01"><output>0.37</output></label>
         <label>Stride Pan <input id="stridePan" type="range" min="-1" max="1" value="0.46" step="0.01"><output>0.46</output></label>
         <label>Address Identity <input id="xorIdentity" type="range" min="0" max="255" value="137" step="1"><output>137.00</output></label>
+        <label>Route <select id="routeIndex"><option value="0">field → address → palette</option><option value="1">address → field → palette</option><option value="2">palette → address → field</option><option value="3">field → palette → address</option></select></label>
+        <label>Palette Pan <input id="palettePosition" type="range" min="0" max="2" value="0" step="0.01"><output>0.00</output></label>
+        <label>Theme Amount <input id="themeAmount" type="range" min="0" max="1" value="0.37" step="0.01"><output>0.37</output></label>
+        <label class="check"><input id="paletteAlphaVariant" type="checkbox"> alpha-led theme</label>
         <label class="check"><input id="addressing" type="checkbox" checked> address drift</label>
         <label class="check"><input id="adaptive" type="checkbox" checked> adaptive routing</label>
         <label class="check"><input id="calm" type="checkbox" checked> calm motion</label>
