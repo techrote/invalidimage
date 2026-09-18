@@ -38,9 +38,10 @@ function samplePalette(palette, control, themeAmount) {
  * palettePosition spans 0..PALETTES.length-1. Fractional positions blend the
  * independently remapped colours of the two neighbouring palettes, which keeps
  * interpolation deterministic even though palette arrays have different lengths.
- * themeAmount preserves the legacy within-palette interpolation-strength role.
- * alphaVariant is an explicit 0..1 blend from luminance-driven to alpha-driven
- * control; route/pass order never enters this function.
+ * Integer positions keep the historical single-palette hot path. themeAmount
+ * preserves the legacy within-palette interpolation-strength role. alphaVariant
+ * is an explicit 0..1 blend from luminance-driven to alpha-driven control;
+ * route/pass order never enters this function.
  */
 export function remapPalette(input, palettePosition = 0, themeAmount = 1, alphaVariant = 0) {
   const position = clamp(finiteNumber(palettePosition), 0, PALETTES.length - 1);
@@ -51,13 +52,14 @@ export function remapPalette(input, palettePosition = 0, themeAmount = 1, alphaV
   const paletteMix = position - firstIndex;
   const firstPalette = PALETTES[firstIndex];
   const secondPalette = PALETTES[secondIndex];
+  const blendPalettes = paletteMix > 0 && secondIndex !== firstIndex;
   const out = new Uint8ClampedArray(input.length);
 
   for (let i = 0; i < input.length; i += 4) {
     const light = luminance(input[i], input[i + 1], input[i + 2]);
     const control = light + (input[i + 3] - light) * alphaMix;
     const first = samplePalette(firstPalette, control, amount);
-    const second = samplePalette(secondPalette, control, amount);
+    const second = blendPalettes ? samplePalette(secondPalette, control, amount) : first;
 
     out[i] = first[0] + (second[0] - first[0]) * paletteMix;
     out[i + 1] = first[1] + (second[1] - first[1]) * paletteMix;
