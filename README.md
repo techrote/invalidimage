@@ -78,7 +78,7 @@ In Manual mode the address pass consumes only resolved macro transform values. R
 
 ## Manual theme and route controls
 
-IMC-004 separates pass order from palette/theme identity. In **manual** Macro Mode the temporary panel now exposes:
+IMC-004 separates pass order from palette/theme identity. In **manual** Macro Mode the temporary panel exposes:
 
 - **Route** (`0..3`) — one of the four existing processing orders. It is discrete by design; the renderer does not crossfade complete routes.
 - **Palette Pan** (`0..2`) — continuous coordinate across the three built-in palettes. Fractional positions remap through each neighbouring palette independently and then blend the remapped RGB values, so palettes with different numbers of colour stops interpolate deterministically without rendering a second full route.
@@ -89,7 +89,22 @@ A stationary manual Palette Pan and Route remain stationary across frame advance
 
 At integer Palette Pan positions the remapper preserves the prior palette sampling behaviour. The explicit alpha-led variant likewise preserves the old phase-3 alpha behaviour when selected with the same Theme Amount. This keeps the legacy visual vocabulary available while removing route identity as its hidden selector.
 
-**Legacy auto** deliberately keeps the historical router-phase coupling for compatibility until the later transport/default integration work. The manual controls are authoritative only in Manual mode; the legacy router may continue evolving internally without affecting manual route or theme state.
+**Legacy auto** deliberately keeps the historical router-phase coupling for compatibility until the final transport/default integration work. The manual controls are authoritative only in Manual or Sweep mode; the legacy router may continue evolving internally without affecting their explicit route/theme primitives.
+
+## Macro Pan and sweep transport
+
+IMC-005 adds deterministic coordinated navigation over the explicit global/theme primitives without re-coupling them to renderer time.
+
+- **Macro Pan** (`0..1`) selects a deterministic macro coordinate derived from the seed. Six seeded keyframes create five equal segments. The first keyframe is neutral, so `macroPan = 0` reproduces the explicit primitive controls exactly.
+- **Macro Mode** now supports **manual**, **sweep**, and **legacy auto**. Manual leaves Macro Pan under direct user control. Sweep advances the same coordinate explicitly. Legacy Auto preserves the historical router/tape path.
+- **Macro Speed** (`-1..1`) is signed. Its unit is normalized pan units per 60 rendered frames. Positive values move forward, negative values reverse, and zero is stationary.
+- **hold macro** freezes Sweep transport at the current coordinate while rendering, local texture motion, temporal history, and feedback continue.
+
+Macro Pan linearly interpolates skew, stride, feedback X/Y, address amount/identity, palette position, and theme amount between seeded keyframes. Route is the only discrete transported dimension and switches at each segment midpoint. No full-route crossfade or second complete render path is introduced. `globalAmount`, `paletteAlphaVariant`, and `directions` remain explicit and are not automated by Macro Pan.
+
+Sweep wraps in `[0,1)`. The renderer itself never derives Sweep position from `frame`; `app.js` advances explicit transport state after rendered frames. Releasing hold therefore resumes from the exact held coordinate on the same seeded path, without a reseed or random jump.
+
+The exact transport contract and boundary rules are recorded in [docs/IMC-005-MACRO-TRANSPORT.md](docs/IMC-005-MACRO-TRANSPORT.md).
 
 ## Resolved modulation diagnostics
 
@@ -97,9 +112,9 @@ At integer Palette Pan positions the remapper preserves the prior palette sampli
 
 The field renderer consumes the resolved micro section directly. The micro contract includes `textureMotion`, `textureComplexity`, temporal field group/phase, effective `noiseAmount`, attraction, `swirl`, `localWarp`, directions, and temporal feedback amount. `warpAmount` remains as a compatibility alias for `localWarp` while downstream IMC work migrates.
 
-The macro contract exposes `manualMode`, `globalAmount`, `skewPan`, resolved `rowSkew`, `stridePan`, resolved `byteStride`, `addressAmount`, XOR amount/identity diagnostics, resolved feedback X/Y, `routeIndex`, `palettePosition`, `themeAmount`, and `paletteAlphaVariant`. In Manual mode all of those macro fields are frame/router independent. The pipeline chooses its pass order from resolved `routeIndex` and the palette pass consumes the three resolved theme fields directly.
+The macro contract exposes transport diagnostics (`macroModeIndex`, `macroPan`, speed, hold, segment position, and keyframe indices) plus `manualMode`, `globalAmount`, `skewPan`, resolved `rowSkew`, `stridePan`, resolved `byteStride`, `addressAmount`, XOR amount/identity diagnostics, resolved feedback X/Y, `routeIndex`, `palettePosition`, `themeAmount`, and `paletteAlphaVariant`. In Manual and Sweep modes all resolved macro fields are frame/router independent for a stationary Macro Pan. The pipeline chooses its pass order from resolved `routeIndex` and the palette pass consumes the three resolved theme fields directly.
 
-Legacy-auto remains deterministic and isolated for compatibility: it can still derive route/theme state from the historical router phase, but that coupling is confined to the explicit compatibility mode rather than leaking into Manual mode. IMC-005 owns coordinated Macro Pan/sweep transport on top of these now-independent primitives.
+Legacy Auto remains deterministic and isolated for compatibility: it can still derive route/theme state from the historical router phase, but Macro Pan transport fields are diagnostic only in that mode and cannot alter the legacy visual path.
 
 `modulationBounds(width)` documents the numeric range of every resolved field and normalises malformed inputs so numeric diagnostics remain finite. Byte-stride bounds depend on render width and are returned by `modulationBounds(width)`.
 
@@ -113,10 +128,11 @@ Legacy-auto remains deterministic and isolated for compatibility: it can still d
 - route transitions temporarily retain more of the previous frame;
 - temporal retention is linear in calm mode, avoiding the brightness pumping of the legacy square-root hold.
 
-Uncheck `calm motion` to recover the harsher stepped local-field timing and legacy transition behaviour. Texture Motion still controls the rate in either mode. In Manual macro mode calm continues to affect local field interpolation and temporal retention, but it does not reintroduce hidden global feedback/skew/route/theme modulation.
+Uncheck `calm motion` to recover the harsher stepped local-field timing and legacy transition behaviour. Texture Motion still controls the rate in either mode. In Manual or Sweep macro mode calm continues to affect local field interpolation and temporal retention, but it does not reintroduce hidden global feedback/skew/route/theme modulation.
 
 ## Development plans
 
 The current modulation-control campaign is specified in:
 
 - [docs/RAG-MODULATION-CONTROL.md](docs/RAG-MODULATION-CONTROL.md)
+- [docs/IMC-005-MACRO-TRANSPORT.md](docs/IMC-005-MACRO-TRANSPORT.md)
