@@ -26,8 +26,8 @@ function energyOf(bytes) {
   return total / Math.max(1, bytes.length / stride);
 }
 
-function applyPass(name, image, width, height, frame, state, phase) {
-  if (name === 'field') return warpImage(image, width, height, frame, state);
+function applyPass(name, image, width, height, frame, state, phase, micro) {
+  if (name === 'field') return warpImage(image, width, height, frame, state, micro);
   if (name === 'address') return addressTransform(image, width, height, frame, state, phase);
   if (name === 'palette') return remapPalette(image, phase, state.pressure);
   return image;
@@ -145,7 +145,7 @@ export function renderFrame({ width, height, frame, state, source, history, rout
 
   for (let i = 0; i < route.length; i++) {
     const before = image;
-    image = applyPass(route[i], image, width, height, frame, state, router.phase);
+    image = applyPass(route[i], image, width, height, frame, state, router.phase, modulation.micro);
     if (((router.pulse + i) & 3) === 0) {
       detachedEnergy += Math.abs(energyOf(image) - energyOf(before));
     }
