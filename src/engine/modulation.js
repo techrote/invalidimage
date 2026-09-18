@@ -1,4 +1,11 @@
 import { hashWords } from '../core/prng.js';
+import {
+  MACRO_KEYFRAME_COUNT,
+  MACRO_SEGMENT_COUNT,
+  MAX_MACRO_SPEED,
+  normalizeMacroMode,
+  resolveMacroPan
+} from './macro-transport.js';
 
 const MAX_DIMENSION = 0x7fffffff;
 const MAX_FRAME = Number.MAX_SAFE_INTEGER;
@@ -113,19 +120,64 @@ function effectiveFeedbackAmount(memory, calm, transition) {
   return clamp(requested, 0, 0.98);
 }
 
-function manualMacroState({ state, seed, width, addressing, pressure, memory }) {
+function transportDiagnostics(state, mode, panState = null) {
+  const macroPan = unitValue(state.macroPan);
+  const macroSpeed = clamp(finiteNumber(state.macroSpeed), -MAX_MACRO_SPEED, MAX_MACRO_SPEED);
+  const macroHold = Boolean(state.macroHold) ? 1 : 0;
+
+  if (mode === 'legacy-auto') {
+    return {
+      macroModeIndex: 2,
+      macroPan,
+      macroSpeed: canonicalZero(macroSpeed),
+      macroHold,
+      macroSegment: 0,
+      macroSegmentT: 0,
+      macroKeyframeIndex: 0,
+      macroNextKeyframeIndex: 1
+    };
+  }
+
+  return {
+    macroModeIndex: mode === 'sweep' ? 1 : 0,
+    macroPan: panState.macroPan,
+    macroSpeed: canonicalZero(macroSpeed),
+    macroHold,
+    macroSegment: panState.segment,
+    macroSegmentT: panState.segmentT,
+    macroKeyframeIndex: panState.keyframeIndex,
+    macroNextKeyframeIndex: panState.nextKeyframeIndex
+  };
+}
+
+function baseManualControls(state, seed, memory, pressure) {
+  const identityFallback = hashWords(seed, 0xbb67ae85) >>> 24;
+  return {
+    skewPan: signedUnitValue(state.skewPan),
+    stridePan: signedUnitValue(finiteNumber(state.stridePan, memory * 2 - 1)),
+    feedbackX: clamp(finiteNumber(state.feedbackX), -MAX_FEEDBACK_X, MAX_FEEDBACK_X),
+    feedbackY: clamp(finiteNumber(state.feedbackY), -MAX_FEEDBACK_Y, MAX_FEEDBACK_Y),
+    addressAmount: unitValue(finiteNumber(state.addressAmount, pressure)),
+    xorIdentity: normalizedByte(state.xorIdentity, identityFallback),
+    routeIndex: normalizedRouteIndex(state.routeIndex, 0),
+    palettePosition: normalizedPalettePosition(state.palettePosition, 0),
+    themeAmount: unitValue(finiteNumber(state.themeAmount, pressure))
+  };
+}
+
+function manualMacroState({ state, width, addressing, pressure, transport }) {
   const globalAmount = unitValue(finiteNumber(state.globalAmount, 1));
   const skewPan = signedUnitValue(state.skewPan);
-  const stridePan = signedUnitValue(finiteNumber(state.stridePan, memory * 2 - 1));
+  const stridePan = signedUnitValue(state.stridePan);
   const requestedFeedbackX = clamp(finiteNumber(state.feedbackX), -MAX_FEEDBACK_X, MAX_FEEDBACK_X);
   const requestedFeedbackY = clamp(finiteNumber(state.feedbackY), -MAX_FEEDBACK_Y, MAX_FEEDBACK_Y);
   const requestedAddressAmount = unitValue(finiteNumber(state.addressAmount, pressure));
-  const identityFallback = hashWords(seed, 0xbb67ae85) >>> 24;
-  const xorIdentity = normalizedByte(state.xorIdentity, identityFallback);
+  const xorIdentity = normalizedByte(state.xorIdentity, 0);
   const addressAmount = addressing ? requestedAddressAmount * globalAmount : 0;
 
   return {
     manualMode: 1,
+    ...transport,
     globalAmount,
     skewPan,
     rowSkew: addressing ? canonicalZero(Math.round(skewPan * MAX_ROW_SKEW * globalAmount)) : 0,
@@ -139,7 +191,6 @@ function manualMacroState({ state, seed, width, addressing, pressure, memory }) 
     xorMask: Math.round(xorIdentity * addressAmount),
     feedbackX: canonicalZero(Math.round(requestedFeedbackX * globalAmount)),
     feedbackY: canonicalZero(Math.round(requestedFeedbackY * globalAmount)),
-    // IMC-004: route and theme are explicit, orthogonal manual dimensions.
     routeIndex: normalizedRouteIndex(state.routeIndex, 0),
     palettePosition: normalizedPalettePosition(state.palettePosition, 0),
     themeAmount: unitValue(finiteNumber(state.themeAmount, pressure)),
@@ -150,7 +201,7 @@ function manualMacroState({ state, seed, width, addressing, pressure, memory }) 
   };
 }
 
-function legacyMacroState({ seed, frame, width, autonomy, displacement, memory, pressure, calm, addressing, phase, pulse, router }) {
+function legacyMacroState({ seed, frame, width, autonomy, displacement, memory, pressure, calm, addressing, phase, pulse, router, transport }) {
   const rawRowSkew = calm
     ? calmRowSkew(seed, frame, pressure)
     : legacyRowSkew(seed, frame, pressure);
@@ -170,6 +221,7 @@ function legacyMacroState({ seed, frame, width, autonomy, displacement, memory, 
 
   return {
     manualMode: 0,
+    ...transport,
     globalAmount: 1,
     skewPan: clamp(rawRowSkew / MAX_ROW_SKEW, -1, 1),
     rowSkew: addressing ? rawRowSkew : 0,
@@ -221,6 +273,14 @@ export function modulationBounds(width = 1) {
     },
     macro: {
       manualMode: [0, 1],
+      macroModeIndex: [0, 2],
+      macroPan: [0, 1],
+      macroSpeed: [-MAX_MACRO_SPEED, MAX_MACRO_SPEED],
+      macroHold: [0, 1],
+      macroSegment: [0, MACRO_SEGMENT_COUNT - 1],
+      macroSegmentT: [0, 1],
+      macroKeyframeIndex: [0, MACRO_SEGMENT_COUNT - 1],
+      macroNextKeyframeIndex: [1, MACRO_KEYFRAME_COUNT - 1],
       globalAmount: [0, 1],
       skewPan: [-1, 1],
       rowSkew: [-MAX_ROW_SKEW, MAX_ROW_SKEW],
@@ -246,11 +306,12 @@ export function modulationBounds(width = 1) {
  * Resolve renderer state into explicit micro and macro dimensions.
  *
  * Local field controls are renderer-facing through textureMotion,
- * textureComplexity, swirl and localWarp. Manual macro mode makes transform,
- * route and theme state deterministic functions of seed + explicit controls;
+ * textureComplexity, swirl and localWarp. Manual and Sweep modes make macro
+ * state deterministic functions of seed + Macro Pan + explicit macro controls;
  * frame, router phase/drift, pulse and energy-latch state cannot alter them.
- * Omitted/legacy macroMode values retain the deterministic compatibility path,
- * including its historical route/theme coupling until Legacy Auto is retired.
+ * Sweep advancement itself is external transport state owned by app.js, so the
+ * renderer never hides a frame-derived sweep behind a gain control. Legacy Auto
+ * retains the historical compatibility path explicitly.
  */
 export function resolveModulation({ state = {}, frame = 0, router = {}, width = 1 } = {}) {
   const safeFrame = normalizedFrame(frame);
@@ -278,6 +339,7 @@ export function resolveModulation({ state = {}, frame = 0, router = {}, width = 
   const pulse = Math.trunc(clamp(finiteNumber(router.pulse), 0, MAX_FRAME));
   const transition = unitValue(router.transition);
   const field = fieldTemporalState(safeFrame, calm, textureMotion);
+  const macroMode = normalizeMacroMode(state.macroMode);
 
   const macroArgs = {
     state,
@@ -294,9 +356,29 @@ export function resolveModulation({ state = {}, frame = 0, router = {}, width = 
     pulse,
     router
   };
-  const macro = state.macroMode === 'manual'
-    ? manualMacroState(macroArgs)
-    : legacyMacroState(macroArgs);
+
+  let macro;
+  if (macroMode === 'legacy-auto') {
+    macro = legacyMacroState({
+      ...macroArgs,
+      transport: transportDiagnostics(state, macroMode)
+    });
+  } else {
+    const panState = resolveMacroPan({
+      seed,
+      pan: state.macroPan,
+      base: baseManualControls(state, seed, memory, pressure)
+    });
+    const resolvedState = {
+      ...state,
+      ...panState.controls
+    };
+    macro = manualMacroState({
+      ...macroArgs,
+      state: resolvedState,
+      transport: transportDiagnostics(state, macroMode, panState)
+    });
+  }
 
   return {
     micro: {
