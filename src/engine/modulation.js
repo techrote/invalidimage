@@ -9,6 +9,7 @@ const MAX_ROW_SKEW = 48;
 const MAX_FEEDBACK_X = 8;
 const MAX_FEEDBACK_Y = 4;
 const VALID_DIRECTIONS = Object.freeze([4, 8, 16]);
+const ROUTE_COUNT = 4;
 const PALETTE_COUNT = 3;
 const CHANNEL_ORDER_COUNT = 5;
 
@@ -48,6 +49,14 @@ function normalizedDirections(value) {
 
 function normalizedByte(value, fallback = 0) {
   return Math.trunc(clamp(finiteNumber(value, fallback), 0, 255));
+}
+
+function normalizedRouteIndex(value, fallback = 0) {
+  return Math.trunc(clamp(finiteNumber(value, fallback), 0, ROUTE_COUNT - 1));
+}
+
+function normalizedPalettePosition(value, fallback = 0) {
+  return clamp(finiteNumber(value, fallback), 0, PALETTE_COUNT - 1);
 }
 
 function smoothstep(t) {
@@ -104,7 +113,7 @@ function effectiveFeedbackAmount(memory, calm, transition) {
   return clamp(requested, 0, 0.98);
 }
 
-function manualMacroState({ state, seed, width, addressing, pressure, memory, phase }) {
+function manualMacroState({ state, seed, width, addressing, pressure, memory }) {
   const globalAmount = unitValue(finiteNumber(state.globalAmount, 1));
   const skewPan = signedUnitValue(state.skewPan);
   const stridePan = signedUnitValue(finiteNumber(state.stridePan, memory * 2 - 1));
@@ -130,12 +139,12 @@ function manualMacroState({ state, seed, width, addressing, pressure, memory, ph
     xorMask: Math.round(xorIdentity * addressAmount),
     feedbackX: canonicalZero(Math.round(requestedFeedbackX * globalAmount)),
     feedbackY: canonicalZero(Math.round(requestedFeedbackY * globalAmount)),
-    routeIndex: phase,
-    palettePosition: phase % PALETTE_COUNT,
-    themeAmount: pressure,
-    paletteAlphaVariant: phase === 3 ? 1 : 0,
+    // IMC-004: route and theme are explicit, orthogonal manual dimensions.
+    routeIndex: normalizedRouteIndex(state.routeIndex, 0),
+    palettePosition: normalizedPalettePosition(state.palettePosition, 0),
+    themeAmount: unitValue(finiteNumber(state.themeAmount, pressure)),
+    paletteAlphaVariant: unitValue(finiteNumber(state.paletteAlphaVariant, 0)),
     // Manual transform identity is deliberately independent from route/frame.
-    // Route and palette are separated later by IMC-004.
     channelOrderIndex: 0,
     byteRotation: 0
   };
@@ -172,6 +181,7 @@ function legacyMacroState({ seed, frame, width, autonomy, displacement, memory, 
     xorMask: addressing ? (xorIdentity & xorAmount) : 0,
     feedbackX,
     feedbackY,
+    // Compatibility mode intentionally retains the historical phase coupling.
     routeIndex: phase,
     palettePosition: phase % PALETTE_COUNT,
     themeAmount: pressure,
@@ -222,7 +232,7 @@ export function modulationBounds(width = 1) {
       xorMask: [0, 255],
       feedbackX: [-MAX_FEEDBACK_X, MAX_FEEDBACK_X],
       feedbackY: [-MAX_FEEDBACK_Y, MAX_FEEDBACK_Y],
-      routeIndex: [0, 3],
+      routeIndex: [0, ROUTE_COUNT - 1],
       palettePosition: [0, PALETTE_COUNT - 1],
       themeAmount: [0, 1],
       paletteAlphaVariant: [0, 1],
@@ -236,12 +246,11 @@ export function modulationBounds(width = 1) {
  * Resolve renderer state into explicit micro and macro dimensions.
  *
  * Local field controls are renderer-facing through textureMotion,
- * textureComplexity, swirl and localWarp. IMC-003 adds an explicit manual macro
- * transform path selected with state.macroMode === 'manual'. In that mode row
- * skew, stride, destructive address amount/identity and feedback translation are
- * functions only of seed + explicit controls and never of frame/router drift.
- * Omitted/legacy macroMode values retain the deterministic compatibility path.
- * Route/palette coupling intentionally remains for IMC-004.
+ * textureComplexity, swirl and localWarp. Manual macro mode makes transform,
+ * route and theme state deterministic functions of seed + explicit controls;
+ * frame, router phase/drift, pulse and energy-latch state cannot alter them.
+ * Omitted/legacy macroMode values retain the deterministic compatibility path,
+ * including its historical route/theme coupling until Legacy Auto is retired.
  */
 export function resolveModulation({ state = {}, frame = 0, router = {}, width = 1 } = {}) {
   const safeFrame = normalizedFrame(frame);
