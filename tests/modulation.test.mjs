@@ -10,6 +10,10 @@ const state = {
   displacement: 0.48,
   memory: 0.73,
   pressure: 0.37,
+  textureMotion: 1,
+  textureComplexity: 0.5,
+  swirl: 0.25 + 0.48 * 0.9,
+  localWarp: 0.48,
   directions: 8,
   addressing: true,
   adaptive: true,
@@ -47,8 +51,39 @@ test('modulation resolution is deterministic for fixed state', () => {
 
 test('resolved numeric state stays finite and within documented bounds', () => {
   const fixtures = [
-    { state: { ...state, autonomy: 0, displacement: 0, memory: 0, pressure: 0, calm: false }, frame: 0, router: initialRouter(), width: 1 },
-    { state: { ...state, autonomy: 1, displacement: 1, memory: 1, pressure: 1 }, frame: 4095, router: { ...router, driftX: 3, driftY: -3 }, width: 4096 },
+    {
+      state: {
+        ...state,
+        autonomy: 0,
+        displacement: 0,
+        memory: 0,
+        pressure: 0,
+        textureMotion: 0,
+        textureComplexity: 0,
+        swirl: 0,
+        localWarp: 0,
+        calm: false
+      },
+      frame: 0,
+      router: initialRouter(),
+      width: 1
+    },
+    {
+      state: {
+        ...state,
+        autonomy: 1,
+        displacement: 1,
+        memory: 1,
+        pressure: 1,
+        textureMotion: 2,
+        textureComplexity: 1,
+        swirl: 1.5,
+        localWarp: 1
+      },
+      frame: 4095,
+      router: { ...router, driftX: 3, driftY: -3 },
+      width: 4096
+    },
     {
       state: {
         ...state,
@@ -57,6 +92,10 @@ test('resolved numeric state stays finite and within documented bounds', () => {
         displacement: -3,
         memory: NaN,
         pressure: 12,
+        textureMotion: Infinity,
+        textureComplexity: -Infinity,
+        swirl: NaN,
+        localWarp: 12,
         directions: 99
       },
       frame: Infinity,
@@ -69,6 +108,100 @@ test('resolved numeric state stays finite and within documented bounds', () => {
     const resolved = resolveModulation(fixture);
     assertWithinDocumentedBounds(resolved, fixture.width);
   }
+});
+
+test('explicit local texture controls are isolated from resolved macro state', () => {
+  const baseline = resolveModulation({ state, frame: 97, router, width: 384 });
+  const variations = [
+    { textureMotion: 0 },
+    { textureMotion: 2 },
+    { textureComplexity: 0 },
+    { textureComplexity: 1 },
+    { swirl: 0 },
+    { swirl: 1.5 },
+    { localWarp: 0 },
+    { localWarp: 1 }
+  ];
+
+  for (const variation of variations) {
+    const resolved = resolveModulation({ state: { ...state, ...variation }, frame: 97, router, width: 384 });
+    assert.deepEqual(resolved.macro, baseline.macro);
+  }
+});
+
+test('texture motion zero freezes resolved field temporal state across frames', () => {
+  const frozen = { ...state, textureMotion: 0 };
+  const baseline = resolveModulation({ state: frozen, frame: 0, router, width: 384 }).micro;
+
+  for (const frame of [1, 17, 31, 32, 97, 4096]) {
+    const micro = resolveModulation({ state: frozen, frame, router, width: 384 }).micro;
+    assert.deepEqual(micro, baseline);
+  }
+});
+
+test('positive texture motion evolves deterministically without modulating directions', () => {
+  const moving = { ...state, textureMotion: 1.35, directions: 16 };
+  const a = resolveModulation({ state: moving, frame: 9, router, width: 384 }).micro;
+  const b = resolveModulation({ state: moving, frame: 57, router, width: 384 }).micro;
+  const bRepeat = resolveModulation({ state: moving, frame: 57, router, width: 384 }).micro;
+
+  assert.notDeepEqual(
+    { group: a.fieldGroup, next: a.fieldNextGroup, phase: a.fieldPhase },
+    { group: b.fieldGroup, next: b.fieldNextGroup, phase: b.fieldPhase }
+  );
+  assert.deepEqual(b, bRepeat);
+  assert.equal(a.directions, 16);
+  assert.equal(b.directions, 16);
+});
+
+test('local-control boundaries clamp continuously without changing topology settings', () => {
+  const low = resolveModulation({
+    state: { ...state, textureMotion: -4, textureComplexity: -2, swirl: -8, localWarp: -3 },
+    frame: 73,
+    router,
+    width: 384
+  });
+  const high = resolveModulation({
+    state: { ...state, textureMotion: 9, textureComplexity: 7, swirl: 9, localWarp: 6 },
+    frame: 73,
+    router,
+    width: 384
+  });
+
+  assert.equal(low.micro.textureMotion, 0);
+  assert.equal(low.micro.textureComplexity, 0);
+  assert.equal(low.micro.noiseAmount, 0);
+  assert.equal(low.micro.swirl, 0);
+  assert.equal(low.micro.localWarp, 0);
+  assert.equal(low.micro.directions, state.directions);
+
+  assert.equal(high.micro.textureMotion, 2);
+  assert.equal(high.micro.textureComplexity, 1);
+  assert.equal(high.micro.noiseAmount, 0.34);
+  assert.equal(high.micro.swirl, 1.5);
+  assert.equal(high.micro.localWarp, 1);
+  assert.equal(high.micro.directions, state.directions);
+});
+
+test('legacy callers without new local controls retain prior field defaults', () => {
+  const legacyState = {
+    seed: state.seed,
+    autonomy: state.autonomy,
+    displacement: state.displacement,
+    memory: state.memory,
+    pressure: state.pressure,
+    directions: state.directions,
+    addressing: state.addressing,
+    adaptive: state.adaptive,
+    calm: state.calm
+  };
+  const resolved = resolveModulation({ state: legacyState, frame: 97, router, width: 384 });
+
+  assert.equal(resolved.micro.textureMotion, 1);
+  assert.equal(resolved.micro.textureComplexity, 0.5);
+  assert.equal(resolved.micro.noiseAmount, 0.17);
+  assert.equal(resolved.micro.swirl, 0.25 + state.displacement * 0.9);
+  assert.equal(resolved.micro.localWarp, state.displacement);
 });
 
 test('directions is a micro-only input in the compatibility contract', () => {
