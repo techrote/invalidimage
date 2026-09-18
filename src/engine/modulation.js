@@ -2,6 +2,9 @@ import { hashWords } from '../core/prng.js';
 
 const MAX_DIMENSION = 0x7fffffff;
 const MAX_FRAME = Number.MAX_SAFE_INTEGER;
+const MAX_TEXTURE_MOTION = 2;
+const MAX_SWIRL = 1.5;
+const MAX_NOISE_AMOUNT = 0.34;
 const VALID_DIRECTIONS = Object.freeze([4, 8, 16]);
 const PALETTE_COUNT = 3;
 const CHANNEL_ORDER_COUNT = 5;
@@ -36,16 +39,19 @@ function smoothstep(t) {
   return t * t * (3 - 2 * t);
 }
 
-function fieldTemporalState(frame, calm) {
+function fieldTemporalState(frame, calm, textureMotion) {
+  if (textureMotion === 0) {
+    return { group: 0, nextGroup: 0, phase: 0 };
+  }
+
+  const span = calm ? 32 : 4;
+  const position = (frame * textureMotion) / span;
+  const group = Math.floor(position);
+
   if (!calm) {
-    // Existing legacy field hashing uses frame >> 2. The unsigned form keeps
-    // the same hash identity while exposing a non-negative diagnostic group.
-    const group = (frame >> 2) >>> 0;
     return { group, nextGroup: group, phase: 0 };
   }
 
-  const position = frame / 32;
-  const group = Math.floor(position);
   return {
     group,
     nextGroup: group + 1,
@@ -80,26 +86,29 @@ function effectiveFeedbackAmount(memory, calm, transition) {
 }
 
 /**
- * Return numeric bounds for the resolved compatibility contract.
+ * Return numeric bounds for the resolved modulation contract.
  *
- * These bounds describe the effective values emitted by resolveModulation()
- * for normalized UI/router inputs. byteStride depends on render width, so its
- * bound is computed for the supplied width.
+ * byteStride depends on render width, so its bound is computed for the supplied
+ * width. textureComplexity is a normalized creative control; noiseAmount is its
+ * effective continuous perturbation amplitude.
  */
 export function modulationBounds(width = 1) {
   const safeWidth = normalizedWidth(width);
   const minimumStride = byteStrideFor(0, safeWidth);
   const maximumStride = byteStrideFor(1, safeWidth);
-  const maximumFieldGroup = Math.floor(MAX_FRAME / 32) + 1;
+  const maximumFieldGroup = Math.floor((MAX_FRAME * MAX_TEXTURE_MOTION) / 4) + 1;
 
   return {
     micro: {
+      textureMotion: [0, MAX_TEXTURE_MOTION],
+      textureComplexity: [0, 1],
       fieldGroup: [0, maximumFieldGroup],
       fieldNextGroup: [0, maximumFieldGroup],
       fieldPhase: [0, 1],
-      noiseAmount: [0.17, 0.17],
+      noiseAmount: [0, MAX_NOISE_AMOUNT],
       attraction: [0, 1],
-      swirl: [0.25, 1.15],
+      swirl: [0, MAX_SWIRL],
+      localWarp: [0, 1],
       warpAmount: [0, 1],
       directions: [4, 16],
       feedbackAmount: [0, 0.98]
@@ -123,14 +132,13 @@ export function modulationBounds(width = 1) {
 }
 
 /**
- * Resolve the current renderer's overloaded controls into explicit micro and
- * macro dimensions without changing rendering behaviour.
+ * Resolve renderer state into explicit micro and macro dimensions.
  *
- * IMC-001 is intentionally a compatibility snapshot: pressure, memory,
- * displacement, autonomy and route phase are still coupled exactly as the
- * current renderer couples them. Later IMC issues replace those compatibility
- * sources with independent user-addressable controls. The resolver exists now
- * so those couplings are observable, deterministic and directly testable.
+ * IMC-002 makes local field motion renderer-facing through textureMotion,
+ * textureComplexity, swirl and localWarp. If those controls are absent, legacy
+ * values reproduce the pre-IMC-002 defaults so headless/external callers remain
+ * compatible while the UI migrates. Macro compatibility coupling is retained
+ * intentionally for IMC-003/004.
  */
 export function resolveModulation({ state = {}, frame = 0, router = {}, width = 1 } = {}) {
   const safeFrame = normalizedFrame(frame);
@@ -144,10 +152,20 @@ export function resolveModulation({ state = {}, frame = 0, router = {}, width = 
   const addressing = Boolean(state.addressing);
   const directions = normalizedDirections(state.directions);
 
+  const textureMotion = clamp(finiteNumber(state.textureMotion, 1), 0, MAX_TEXTURE_MOTION);
+  const textureComplexity = unitValue(finiteNumber(state.textureComplexity, 0.5));
+  const swirl = clamp(
+    finiteNumber(state.swirl, 0.25 + displacement * 0.9),
+    0,
+    MAX_SWIRL
+  );
+  const localWarp = unitValue(finiteNumber(state.localWarp, displacement));
+  const noiseAmount = textureComplexity * MAX_NOISE_AMOUNT;
+
   const phase = (Math.trunc(finiteNumber(router.phase)) & 3) >>> 0;
   const pulse = Math.trunc(clamp(finiteNumber(router.pulse), 0, MAX_FRAME));
   const transition = unitValue(router.transition);
-  const field = fieldTemporalState(safeFrame, calm);
+  const field = fieldTemporalState(safeFrame, calm, textureMotion);
 
   const rawRowSkew = calm
     ? calmRowSkew(seed, safeFrame, pressure)
@@ -168,13 +186,17 @@ export function resolveModulation({ state = {}, frame = 0, router = {}, width = 
 
   return {
     micro: {
+      textureMotion,
+      textureComplexity,
       fieldGroup: field.group,
       fieldNextGroup: field.nextGroup,
       fieldPhase: field.phase,
-      noiseAmount: 0.17,
+      noiseAmount,
       attraction: pressure,
-      swirl: 0.25 + displacement * 0.9,
-      warpAmount: displacement,
+      swirl,
+      localWarp,
+      // Compatibility alias retained while downstream IMC work migrates.
+      warpAmount: localWarp,
       directions,
       feedbackAmount: effectiveFeedbackAmount(memory, calm, transition)
     },
