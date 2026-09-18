@@ -50,93 +50,82 @@ function quantize(vx, vy, sectors) {
   return [direction[0] * magnitude, direction[1] * magnitude];
 }
 
-function smoothstep(t) {
-  return t * t * (3 - 2 * t);
+function temporalNoise(seed, nx, ny, micro, salt) {
+  const a = signedHash(seed, nx, ny, micro.fieldGroup, salt);
+  if (micro.fieldPhase === 0 || micro.fieldNextGroup === micro.fieldGroup) {
+    return a * micro.noiseAmount;
+  }
+
+  const b = signedHash(seed, nx, ny, micro.fieldNextGroup, salt);
+  return (a + (b - a) * micro.fieldPhase) * micro.noiseAmount;
 }
 
-function temporalGroups(frame, calm) {
-  if (!calm) return { a: frame >> 2, b: frame >> 2, t: 0 };
-
-  const span = 32;
-  const position = Math.max(0, frame) / span;
-  const a = Math.floor(position);
-  return {
-    a,
-    b: a + 1,
-    t: smoothstep(position - a)
-  };
-}
-
-function temporalNoise(seed, nx, ny, frame, salt, calm) {
-  const groups = temporalGroups(frame, calm);
-  const a = signedHash(seed, nx, ny, groups.a, salt);
-  if (groups.t === 0) return a * 0.17;
-  const b = signedHash(seed, nx, ny, groups.b, salt);
-  return (a + (b - a) * groups.t) * 0.17;
-}
-
-function vectorComponents(x, y, state, noiseX, noiseY) {
+function vectorComponents(x, y, micro, noiseX, noiseY) {
   const cx = x - 0.5;
   const cy = y - 0.5;
   const distance = Math.max(Math.abs(cx), Math.abs(cy)) + 1e-6;
   const falloff = Math.max(0, 1 - distance * 1.55);
 
-  const attract = state.pressure * falloff;
+  const attract = micro.attraction * falloff;
   let vx = (-cx / distance) * attract;
   let vy = (-cy / distance) * attract;
 
-  const spin = 0.25 + state.displacement * 0.9;
-  vx += -cy * spin;
-  vy += cx * spin;
+  vx += -cy * micro.swirl;
+  vy += cx * micro.swirl;
   vx += noiseX;
   vy += noiseY;
 
   return [vx, vy];
 }
 
-export function sampleVector(x, y, frame, state) {
+/**
+ * Sample the local vector field using already-resolved micro modulation.
+ * frame is retained in the signature for compatibility but deliberately is not
+ * consulted here: temporal identity is owned by micro.fieldGroup/fieldPhase.
+ */
+export function sampleVector(x, y, frame, state, micro) {
+  void frame;
   const cell = 18 + ((state.seed >>> 3) % 29);
   const nx = Math.floor(x * cell);
   const ny = Math.floor(y * cell);
-  const noiseX = temporalNoise(state.seed, nx, ny, frame, 0x243f6a88, state.calm);
-  const noiseY = temporalNoise(state.seed, nx, ny, frame, 0xb7e15162, state.calm);
-  const [vx, vy] = vectorComponents(x, y, state, noiseX, noiseY);
-  return quantize(vx, vy, Number(state.directions));
+  const noiseX = temporalNoise(state.seed, nx, ny, micro, 0x243f6a88);
+  const noiseY = temporalNoise(state.seed, nx, ny, micro, 0xb7e15162);
+  const [vx, vy] = vectorComponents(x, y, micro, noiseX, noiseY);
+  return quantize(vx, vy, Number(micro.directions));
 }
 
-export function warpImage(input, width, height, frame, state) {
+export function warpImage(input, width, height, frame, state, micro) {
+  void frame;
   const out = new Uint8ClampedArray(input.length);
-  const scale = state.displacement * Math.min(width, height) * 0.075;
-  const sectors = Number(state.directions);
+  const scale = micro.localWarp * Math.min(width, height) * 0.075;
+  const sectors = Number(micro.directions);
   const table = DIRECTIONS[sectors] || DIRECTIONS[8];
 
   const cell = 18 + ((state.seed >>> 3) % 29);
   const side = cell + 1;
   const noiseX = new Float64Array(side * side);
   const noiseY = new Float64Array(side * side);
-  const groups = temporalGroups(frame, state.calm);
 
   for (let ny = 0; ny < side; ny++) {
     for (let nx = 0; nx < side; nx++) {
       const index = ny * side + nx;
-      const x0 = signedHash(state.seed, nx, ny, groups.a, 0x243f6a88);
-      const y0 = signedHash(state.seed, nx, ny, groups.a, 0xb7e15162);
+      const x0 = signedHash(state.seed, nx, ny, micro.fieldGroup, 0x243f6a88);
+      const y0 = signedHash(state.seed, nx, ny, micro.fieldGroup, 0xb7e15162);
 
-      if (groups.t === 0) {
-        noiseX[index] = x0 * 0.17;
-        noiseY[index] = y0 * 0.17;
+      if (micro.fieldPhase === 0 || micro.fieldNextGroup === micro.fieldGroup) {
+        noiseX[index] = x0 * micro.noiseAmount;
+        noiseY[index] = y0 * micro.noiseAmount;
       } else {
-        const x1 = signedHash(state.seed, nx, ny, groups.b, 0x243f6a88);
-        const y1 = signedHash(state.seed, nx, ny, groups.b, 0xb7e15162);
-        noiseX[index] = (x0 + (x1 - x0) * groups.t) * 0.17;
-        noiseY[index] = (y0 + (y1 - y0) * groups.t) * 0.17;
+        const x1 = signedHash(state.seed, nx, ny, micro.fieldNextGroup, 0x243f6a88);
+        const y1 = signedHash(state.seed, nx, ny, micro.fieldNextGroup, 0xb7e15162);
+        noiseX[index] = (x0 + (x1 - x0) * micro.fieldPhase) * micro.noiseAmount;
+        noiseY[index] = (y0 + (y1 - y0) * micro.fieldPhase) * micro.noiseAmount;
       }
     }
   }
 
   const widthDenominator = Math.max(1, width - 1);
   const heightDenominator = Math.max(1, height - 1);
-  const spin = 0.25 + state.displacement * 0.9;
 
   for (let y = 0; y < height; y++) {
     const v = y / heightDenominator;
@@ -150,12 +139,12 @@ export function warpImage(input, width, height, frame, state) {
       const cx = u - 0.5;
       const distance = Math.max(Math.abs(cx), Math.abs(cy)) + 1e-6;
       const falloff = Math.max(0, 1 - distance * 1.55);
-      const attract = state.pressure * falloff;
+      const attract = micro.attraction * falloff;
 
       let vx = (-cx / distance) * attract;
       let vy = (-cy / distance) * attract;
-      vx += -cy * spin;
-      vy += cx * spin;
+      vx += -cy * micro.swirl;
+      vy += cx * micro.swirl;
       vx += noiseX[noiseIndex];
       vy += noiseY[noiseIndex];
 

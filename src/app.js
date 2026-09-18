@@ -14,7 +14,21 @@ if (!context) {
   throw new Error('2D canvas context is unavailable');
 }
 
-const ids = ['seed', 'autonomy', 'displacement', 'memory', 'pressure', 'directions', 'addressing', 'adaptive', 'calm'];
+const ids = [
+  'seed',
+  'autonomy',
+  'displacement',
+  'memory',
+  'pressure',
+  'textureMotion',
+  'textureComplexity',
+  'swirl',
+  'localWarp',
+  'directions',
+  'addressing',
+  'adaptive',
+  'calm'
+];
 const controls = Object.fromEntries(ids.map((id) => [id, document.querySelector('#' + id)]));
 const readout = {
   frame: document.querySelector('#frame'),
@@ -55,6 +69,10 @@ function readState() {
     displacement: Number(controls.displacement.value),
     memory: Number(controls.memory.value),
     pressure: Number(controls.pressure.value),
+    textureMotion: Number(controls.textureMotion.value),
+    textureComplexity: Number(controls.textureComplexity.value),
+    swirl: Number(controls.swirl.value),
+    localWarp: Number(controls.localWarp.value),
     directions: Number(controls.directions.value),
     addressing: controls.addressing.checked,
     adaptive: controls.adaptive.checked,
