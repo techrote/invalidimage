@@ -54,3 +54,9 @@ The interactive viewport uses a 384×384 internal render surface and scales it t
 - temporal retention is linear in calm mode, avoiding the brightness pumping of the legacy square-root hold.
 
 Uncheck `calm motion` to recover the original harsher stepping behaviour.
+
+## Development plans
+
+The current modulation-control campaign is specified in:
+
+- [docs/RAG-MODULATION-CONTROL.md](docs/RAG-MODULATION-CONTROL.md)
