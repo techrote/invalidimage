@@ -32,6 +32,14 @@
         <label>Swirl <input id="swirl" type="range" min="0" max="1.5" value="0.682" step="0.001"><output>0.68</output></label>
         <label>Local Warp <input id="localWarp" type="range" min="0" max="1" value="0.48" step="0.01"><output>0.48</output></label>
         <label>Directions <select id="directions"><option>4</option><option selected>8</option><option>16</option></select></label>
+        <label>Macro Mode <select id="macroMode"><option value="legacy-auto" selected>legacy auto</option><option value="manual">manual</option></select></label>
+        <label>Global Amount <input id="globalAmount" type="range" min="0" max="1" value="1" step="0.01"><output>1.00</output></label>
+        <label>Skew Pan <input id="skewPan" type="range" min="-1" max="1" value="0" step="0.01"><output>0.00</output></label>
+        <label>Feedback X <input id="feedbackX" type="range" min="-8" max="8" value="0" step="1"><output>0.00</output></label>
+        <label>Feedback Y <input id="feedbackY" type="range" min="-4" max="4" value="0" step="1"><output>0.00</output></label>
+        <label>Address Amount <input id="addressAmount" type="range" min="0" max="1" value="0.37" step="0.01"><output>0.37</output></label>
+        <label>Stride Pan <input id="stridePan" type="range" min="-1" max="1" value="0.46" step="0.01"><output>0.46</output></label>
+        <label>Address Identity <input id="xorIdentity" type="range" min="0" max="255" value="137" step="1"><output>137.00</output></label>
         <label class="check"><input id="addressing" type="checkbox" checked> address drift</label>
         <label class="check"><input id="adaptive" type="checkbox" checked> adaptive routing</label>
         <label class="check"><input id="calm" type="checkbox" checked> calm motion</label>
