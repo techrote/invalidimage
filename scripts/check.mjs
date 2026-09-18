@@ -9,6 +9,7 @@ const files = [
   'src/engine/address.js',
   'src/engine/palette.js',
   'src/engine/frame-mix.js',
+  'src/engine/modulation.js',
   'src/engine/pipeline.js',
   'scripts/dev.mjs'
 ];
