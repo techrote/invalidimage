@@ -1,4 +1,5 @@
 import { renderFrame, initialRouter } from './engine/pipeline.js';
+import { advanceMacroTransport } from './engine/macro-transport.js';
 import { makeSurface } from './engine/surface.js';
 
 const canvas = document.querySelector('#view');
@@ -26,6 +27,9 @@ const ids = [
   'localWarp',
   'directions',
   'macroMode',
+  'macroPan',
+  'macroSpeed',
+  'macroHold',
   'globalAmount',
   'skewPan',
   'feedbackX',
@@ -87,6 +91,9 @@ function readState() {
     localWarp: Number(controls.localWarp.value),
     directions: Number(controls.directions.value),
     macroMode: controls.macroMode.value,
+    macroPan: Number(controls.macroPan.value),
+    macroSpeed: Number(controls.macroSpeed.value),
+    macroHold: controls.macroHold.checked,
     globalAmount: Number(controls.globalAmount.value),
     skewPan: Number(controls.skewPan.value),
     feedbackX: Number(controls.feedbackX.value),
@@ -115,6 +122,21 @@ function syncOutputs() {
     const output = input.parentElement.querySelector('output');
     if (output) output.value = Number(input.value).toFixed(2);
   });
+}
+
+function advanceTransport(state) {
+  const next = advanceMacroTransport({
+    macroMode: state.macroMode,
+    macroPan: state.macroPan,
+    macroSpeed: state.macroSpeed,
+    macroHold: state.macroHold,
+    frames: 1
+  });
+
+  if (next.macroPan !== state.macroPan) {
+    controls.macroPan.value = String(next.macroPan);
+    syncOutputs();
+  }
 }
 
 function sourceFor(state) {
@@ -153,6 +175,7 @@ function drawOne() {
     readout.latch.textContent = router.phase + ':' + router.flips;
     status.textContent = source ? 'external source / live state' : 'generated source / live state';
     frame += 1;
+    advanceTransport(state);
   } catch (error) {
     reportFailure(error);
   }
