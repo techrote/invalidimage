@@ -26,10 +26,17 @@ function energyOf(bytes) {
   return total / Math.max(1, bytes.length / stride);
 }
 
-function applyPass(name, image, width, height, frame, state, phase, modulation) {
+function applyPass(name, image, width, height, frame, state, modulation) {
   if (name === 'field') return warpImage(image, width, height, frame, state, modulation.micro);
   if (name === 'address') return addressTransform(image, width, height, state, modulation.macro);
-  if (name === 'palette') return remapPalette(image, phase, state.pressure);
+  if (name === 'palette') {
+    return remapPalette(
+      image,
+      modulation.macro.palettePosition,
+      modulation.macro.themeAmount,
+      modulation.macro.paletteAlphaVariant
+    );
+  }
   return image;
 }
 
@@ -132,20 +139,24 @@ export function advanceRouter(router, frame, energy, state) {
   };
 }
 
-export function routeFor(router) {
-  return ROUTES[router.phase & 3];
+export function routeFor(routeSource) {
+  const rawIndex = typeof routeSource === 'number'
+    ? routeSource
+    : routeSource?.phase;
+  const index = Number.isFinite(Number(rawIndex)) ? Math.trunc(Number(rawIndex)) : 0;
+  return ROUTES[((index % ROUTES.length) + ROUTES.length) % ROUTES.length];
 }
 
 export function renderFrame({ width, height, frame, state, source, history, router }) {
   const modulation = resolveModulation({ state, frame, router, width });
   const generated = source ? source.slice() : makeSurface(width, height, state.seed, frame);
   let image = generated;
-  const route = routeFor(router);
+  const route = routeFor(modulation.macro.routeIndex);
   let detachedEnergy = 0;
 
   for (let i = 0; i < route.length; i++) {
     const before = image;
-    image = applyPass(route[i], image, width, height, frame, state, router.phase, modulation);
+    image = applyPass(route[i], image, width, height, frame, state, modulation);
     if (((router.pulse + i) & 3) === 0) {
       detachedEnergy += Math.abs(energyOf(image) - energyOf(before));
     }

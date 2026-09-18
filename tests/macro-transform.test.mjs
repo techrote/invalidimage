@@ -25,6 +25,10 @@ const manualState = {
   addressAmount: 0.6,
   stridePan: 0.42,
   xorIdentity: 173,
+  routeIndex: 2,
+  palettePosition: 2,
+  themeAmount: 0.37,
+  paletteAlphaVariant: 0,
   addressing: true,
   adaptive: true,
   calm: true
@@ -132,9 +136,9 @@ test('skew pan is monotonic and isolated from route/theme diagnostics', () => {
 
   assert.deepEqual(values.map((value) => value.rowSkew), [-48, -24, 0, 24, 48]);
   for (const value of values) {
-    assert.equal(value.routeIndex, 2);
-    assert.equal(value.palettePosition, 2);
-    assert.equal(value.themeAmount, manualState.pressure);
+    assert.equal(value.routeIndex, manualState.routeIndex);
+    assert.equal(value.palettePosition, manualState.palettePosition);
+    assert.equal(value.themeAmount, manualState.themeAmount);
   }
 });
 
