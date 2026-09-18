@@ -5,6 +5,32 @@ Campaign: IMC — Invalid Image Modulation Control
 Repository: `techrote/invalidimage`  
 Baseline reviewed: `main` at `c7cf008db5a978355d70eb947a912dd1c8c84982`
 
+## Contents
+
+- [1. Intent](#1-intent) — Defines the desired local-texture / explicit-macro-control behaviour.
+- [2. Evidence from the current implementation](#2-evidence-from-the-current-implementation) — Maps the hidden and overloaded modulation sources in current code.
+- [3. Initial plan](#3-initial-plan) — Records the first-pass control strategy.
+- [4. Plan review](#4-plan-review) — Identifies coupling, performance, hold-semantics and reproducibility risks.
+- [5. Revised architecture](#5-revised-architecture) — Defines base controls, the modulation resolver and renderer consumers.
+- [6. Macro Pan contract](#6-macro-pan-contract) — Specifies deterministic manual scrubbing and seeded macro keyframes.
+- [7. Default behaviour after the campaign](#7-default-behaviour-after-the-campaign) — Sets the intended living-micro / stationary-macro startup state.
+- [8. UX structure](#8-ux-structure) — Groups controls into Local Texture, Global Transform, Theme and Macro Transport.
+- [9. Testing and acceptance strategy](#9-testing-and-acceptance-strategy) — Defines resolver, renderer, continuity and performance checks.
+- [10. Non-goals](#10-non-goals) — Prevents scope expansion into snapshots, timelines, backend rewrites and unrelated features.
+- [11. Revised implementation DAG](#11-revised-implementation-dag) — Orders IMC-001 through IMC-007 and their dependencies.
+- [12. Autonomous issue execution contract](#12-autonomous-issue-execution-contract) — Defines branch, PR, CI, merge and blocker handling.
+- [13. Definition of campaign success](#13-definition-of-campaign-success) — States the user-visible completion criteria.
+
+## Issue tracker
+
+- [#5 — IMC-001: explicit modulation-state contract and diagnostics](https://github.com/techrote/invalidimage/issues/5)
+- [#6 — IMC-002: local texture dynamics](https://github.com/techrote/invalidimage/issues/6)
+- [#7 — IMC-003: global transform/address modulation](https://github.com/techrote/invalidimage/issues/7)
+- [#8 — IMC-004: palette/theme and route identity](https://github.com/techrote/invalidimage/issues/8)
+- [#9 — IMC-005: deterministic Macro Pan and sweep transport](https://github.com/techrote/invalidimage/issues/9)
+- [#10 — IMC-006: control-panel UX and production defaults](https://github.com/techrote/invalidimage/issues/10)
+- [#11 — IMC-007: continuity, determinism and performance qualification](https://github.com/techrote/invalidimage/issues/11)
+
 ## 1. Intent
 
 The target is **not** to make Invalid Image generally slower or less complex.
