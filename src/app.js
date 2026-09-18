@@ -33,6 +33,10 @@ const ids = [
   'addressAmount',
   'stridePan',
   'xorIdentity',
+  'routeIndex',
+  'palettePosition',
+  'themeAmount',
+  'paletteAlphaVariant',
   'addressing',
   'adaptive',
   'calm'
@@ -90,6 +94,10 @@ function readState() {
     addressAmount: Number(controls.addressAmount.value),
     stridePan: Number(controls.stridePan.value),
     xorIdentity: Number(controls.xorIdentity.value),
+    routeIndex: Number(controls.routeIndex.value),
+    palettePosition: Number(controls.palettePosition.value),
+    themeAmount: Number(controls.themeAmount.value),
+    paletteAlphaVariant: controls.paletteAlphaVariant.checked ? 1 : 0,
     addressing: controls.addressing.checked,
     adaptive: controls.adaptive.checked,
     calm: controls.calm.checked
