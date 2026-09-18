@@ -5,8 +5,9 @@ import { makeSurface } from './engine/surface.js';
 const canvas = document.querySelector('#view');
 const fileInput = document.querySelector('#file');
 const status = document.querySelector('#status');
+const pauseButton = document.querySelector('#pause');
 
-if (!canvas || !fileInput || !status) {
+if (!canvas || !fileInput || !status || !pauseButton) {
   throw new Error('required application elements are missing');
 }
 
@@ -48,6 +49,7 @@ const ids = [
 const controls = Object.fromEntries(ids.map((id) => [id, document.querySelector('#' + id)]));
 const readout = {
   frame: document.querySelector('#frame'),
+  macro: document.querySelector('#macro'),
   route: document.querySelector('#route'),
   energy: document.querySelector('#energy'),
   latch: document.querySelector('#latch')
@@ -70,9 +72,15 @@ let router = initialRouter();
 let raf = 0;
 let failed = false;
 
+function setPaused(nextPaused) {
+  paused = Boolean(nextPaused);
+  pauseButton.textContent = paused ? 'resume' : 'pause';
+  pauseButton.setAttribute('aria-pressed', paused ? 'true' : 'false');
+}
+
 function reportFailure(error) {
   failed = true;
-  paused = true;
+  setPaused(true);
   const message = error instanceof Error ? error.message : String(error);
   status.textContent = 'renderer failed — ' + message;
   console.error('Invalid Image renderer failed:', error);
@@ -112,15 +120,23 @@ function readState() {
 }
 
 function reset() {
+  // Reset restarts temporal/history state but deliberately preserves every
+  // explicit control, including Macro Pan and mode.
   frame = 0;
   history = null;
   router = initialRouter();
 }
 
+function rangePrecision(input) {
+  const step = input.getAttribute('step') || '1';
+  if (!step.includes('.')) return 0;
+  return Math.min(3, step.split('.')[1].length);
+}
+
 function syncOutputs() {
   document.querySelectorAll('input[type="range"]').forEach((input) => {
     const output = input.parentElement.querySelector('output');
-    if (output) output.value = Number(input.value).toFixed(2);
+    if (output) output.value = Number(input.value).toFixed(rangePrecision(input));
   });
 }
 
@@ -169,7 +185,11 @@ function drawOne() {
     router = result.router;
     context.putImageData(new ImageData(result.image, canvas.width, canvas.height), 0, 0);
 
+    const macroPan = result.modulation.macro.macroPan;
     readout.frame.textContent = String(frame);
+    readout.macro.textContent = state.macroMode === 'legacy-auto'
+      ? 'legacy auto'
+      : state.macroMode + ' ' + macroPan.toFixed(3);
     readout.route.textContent = result.route;
     readout.energy.textContent = result.energy.toFixed(2);
     readout.latch.textContent = router.phase + ':' + router.flips;
@@ -222,14 +242,13 @@ for (const input of Object.values(controls)) input.addEventListener('input', syn
 controls.seed.addEventListener('change', reset);
 
 document.querySelector('#reset').addEventListener('click', reset);
-document.querySelector('#pause').addEventListener('click', (event) => {
+pauseButton.addEventListener('click', () => {
   if (failed) return;
-  paused = !paused;
-  event.currentTarget.textContent = paused ? 'resume' : 'pause';
+  setPaused(!paused);
 });
 document.querySelector('#step').addEventListener('click', () => {
   if (failed) return;
-  paused = true;
+  setPaused(true);
   drawOne();
 });
 document.querySelector('#mutate').addEventListener('click', () => {
@@ -252,6 +271,7 @@ canvas.addEventListener('drop', (event) => {
 window.addEventListener('beforeunload', () => cancelAnimationFrame(raf));
 
 syncOutputs();
+setPaused(false);
 status.textContent = 'starting renderer';
 window.__invalidImageBooted = true;
 window.dispatchEvent(new Event('invalid-image-ready'));

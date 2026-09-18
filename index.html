@@ -21,46 +21,75 @@
         <div class="drop-note">drop image / click to load</div>
         <input id="file" type="file" accept="image/*" hidden>
       </div>
-      <aside class="panel">
-        <label>Seed <input id="seed" type="number" value="5501" step="1"></label>
-        <label>Autonomy <input id="autonomy" type="range" min="0" max="1" value="0.62" step="0.01"><output>0.62</output></label>
-        <label>Displacement <input id="displacement" type="range" min="0" max="1" value="0.48" step="0.01"><output>0.48</output></label>
-        <label>Memory <input id="memory" type="range" min="0" max="1" value="0.73" step="0.01"><output>0.73</output></label>
-        <label>Pressure <input id="pressure" type="range" min="0" max="1" value="0.37" step="0.01"><output>0.37</output></label>
-        <label>Texture Motion <input id="textureMotion" type="range" min="0" max="2" value="1" step="0.01"><output>1.00</output></label>
-        <label>Texture Complexity <input id="textureComplexity" type="range" min="0" max="1" value="0.50" step="0.01"><output>0.50</output></label>
-        <label>Swirl <input id="swirl" type="range" min="0" max="1.5" value="0.682" step="0.001"><output>0.68</output></label>
-        <label>Local Warp <input id="localWarp" type="range" min="0" max="1" value="0.48" step="0.01"><output>0.48</output></label>
-        <label>Directions <select id="directions"><option>4</option><option selected>8</option><option>16</option></select></label>
-        <label>Macro Mode <select id="macroMode"><option value="legacy-auto" selected>legacy auto</option><option value="manual">manual</option><option value="sweep">sweep</option></select></label>
-        <label>Macro Pan <input id="macroPan" type="range" min="0" max="1" value="0" step="0.001"><output>0.00</output></label>
-        <label>Macro Speed <input id="macroSpeed" type="range" min="-1" max="1" value="0" step="0.01"><output>0.00</output></label>
-        <label class="check"><input id="macroHold" type="checkbox"> hold macro</label>
-        <label>Global Amount <input id="globalAmount" type="range" min="0" max="1" value="1" step="0.01"><output>1.00</output></label>
-        <label>Skew Pan <input id="skewPan" type="range" min="-1" max="1" value="0" step="0.01"><output>0.00</output></label>
-        <label>Feedback X <input id="feedbackX" type="range" min="-8" max="8" value="0" step="1"><output>0.00</output></label>
-        <label>Feedback Y <input id="feedbackY" type="range" min="-4" max="4" value="0" step="1"><output>0.00</output></label>
-        <label>Address Amount <input id="addressAmount" type="range" min="0" max="1" value="0.37" step="0.01"><output>0.37</output></label>
-        <label>Stride Pan <input id="stridePan" type="range" min="-1" max="1" value="0.46" step="0.01"><output>0.46</output></label>
-        <label>Address Identity <input id="xorIdentity" type="range" min="0" max="255" value="137" step="1"><output>137.00</output></label>
-        <label>Route <select id="routeIndex"><option value="0">field → address → palette</option><option value="1">address → field → palette</option><option value="2">palette → address → field</option><option value="3">field → palette → address</option></select></label>
-        <label>Palette Pan <input id="palettePosition" type="range" min="0" max="2" value="0" step="0.01"><output>0.00</output></label>
-        <label>Theme Amount <input id="themeAmount" type="range" min="0" max="1" value="0.37" step="0.01"><output>0.37</output></label>
-        <label class="check"><input id="paletteAlphaVariant" type="checkbox"> alpha-led theme</label>
-        <label class="check"><input id="addressing" type="checkbox" checked> address drift</label>
-        <label class="check"><input id="adaptive" type="checkbox" checked> adaptive routing</label>
-        <label class="check"><input id="calm" type="checkbox" checked> calm motion</label>
+      <aside class="panel" aria-label="Invalid Image controls">
+        <div class="panel-meta">
+          <label>Seed <input id="seed" type="number" value="5501" step="1"></label>
+          <p>Local texture may keep moving while the broad look stays fixed.</p>
+        </div>
+
+        <fieldset class="control-group" data-control-group="local-texture">
+          <legend>Local Texture</legend>
+          <label>Motion <input id="textureMotion" type="range" min="0" max="2" value="1" step="0.01"><output>1.00</output></label>
+          <label>Complexity <input id="textureComplexity" type="range" min="0" max="1" value="0.50" step="0.01"><output>0.50</output></label>
+          <label>Swirl <input id="swirl" type="range" min="0" max="1.5" value="0.682" step="0.001"><output>0.682</output></label>
+          <label>Local Warp <input id="localWarp" type="range" min="0" max="1" value="0.48" step="0.01"><output>0.48</output></label>
+          <label>Attraction <input id="pressure" type="range" min="0" max="1" value="0.37" step="0.01"><output>0.37</output></label>
+          <label>Persistence <input id="memory" type="range" min="0" max="1" value="0.73" step="0.01"><output>0.73</output></label>
+          <label>Directions <select id="directions"><option>4</option><option selected>8</option><option>16</option></select></label>
+          <label class="check"><input id="calm" type="checkbox" checked> calm interpolation</label>
+        </fieldset>
+
+        <fieldset class="control-group" data-control-group="global-transform">
+          <legend>Global Transform</legend>
+          <label>Amount <input id="globalAmount" type="range" min="0" max="1" value="0.10" step="0.01"><output>0.10</output></label>
+          <label>Skew <input id="skewPan" type="range" min="-1" max="1" value="0" step="0.01"><output>0.00</output></label>
+          <label>Feedback X <input id="feedbackX" type="range" min="-8" max="8" value="0" step="1"><output>0</output></label>
+          <label>Feedback Y <input id="feedbackY" type="range" min="-4" max="4" value="0" step="1"><output>0</output></label>
+          <label>Address Amount <input id="addressAmount" type="range" min="0" max="1" value="0.37" step="0.01"><output>0.37</output></label>
+          <label>Stride <input id="stridePan" type="range" min="-1" max="1" value="0.46" step="0.01"><output>0.46</output></label>
+          <label>Address Identity <input id="xorIdentity" type="range" min="0" max="255" value="137" step="1"><output>137</output></label>
+          <label class="check"><input id="addressing" type="checkbox" checked> address transform</label>
+        </fieldset>
+
+        <fieldset class="control-group" data-control-group="theme">
+          <legend>Theme</legend>
+          <label>Palette Pan <input id="palettePosition" type="range" min="0" max="2" value="0" step="0.01"><output>0.00</output></label>
+          <label>Theme Amount <input id="themeAmount" type="range" min="0" max="1" value="0.37" step="0.01"><output>0.37</output></label>
+          <label>Route <select id="routeIndex"><option value="0" selected>field → address → palette</option><option value="1">address → field → palette</option><option value="2">palette → address → field</option><option value="3">field → palette → address</option></select></label>
+          <label class="check"><input id="paletteAlphaVariant" type="checkbox"> alpha-led theme</label>
+        </fieldset>
+
+        <fieldset class="control-group macro-transport" data-control-group="macro-transport">
+          <legend>Macro Transport</legend>
+          <label>Mode <select id="macroMode"><option value="manual" selected>manual</option><option value="sweep">sweep</option><option value="legacy-auto">legacy auto</option></select></label>
+          <label>Macro Pan <input id="macroPan" type="range" min="0" max="1" value="0" step="0.001"><output>0.000</output></label>
+          <label>Sweep Speed <input id="macroSpeed" type="range" min="-1" max="1" value="0" step="0.01"><output>0.00</output></label>
+          <label class="check macro-hold"><input id="macroHold" type="checkbox"> Hold Macro</label>
+          <p class="group-note">Hold freezes macro transport only. Pause freezes rendering.</p>
+        </fieldset>
+
+        <details class="legacy-controls">
+          <summary>Legacy compatibility</summary>
+          <div class="legacy-grid">
+            <label>Autonomy <input id="autonomy" type="range" min="0" max="1" value="0.62" step="0.01"><output>0.62</output></label>
+            <label>Displacement <input id="displacement" type="range" min="0" max="1" value="0.48" step="0.01"><output>0.48</output></label>
+            <label class="check"><input id="adaptive" type="checkbox" checked> adaptive legacy routing</label>
+          </div>
+          <p class="group-note">These controls preserve the historical Legacy Auto path. Manual and Sweep use the explicit controls above.</p>
+        </details>
+
         <div class="buttons">
           <button id="reset">reset</button>
-          <button id="pause">pause</button>
+          <button id="pause" aria-pressed="false">pause</button>
           <button id="step">step</button>
           <button id="mutate">mutate</button>
         </div>
         <dl class="readout">
           <div><dt>frame</dt><dd id="frame">0</dd></div>
+          <div><dt>macro</dt><dd id="macro">manual 0.000</dd></div>
           <div><dt>route</dt><dd id="route">-</dd></div>
           <div><dt>energy</dt><dd id="energy">0</dd></div>
-          <div><dt>latch</dt><dd id="latch">0</dd></div>
+          <div><dt>legacy latch</dt><dd id="latch">0</dd></div>
         </dl>
       </aside>
     </section>
